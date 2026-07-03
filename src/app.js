@@ -3,26 +3,26 @@
 // where: anywhere=到哪都能做(出門日仍顯示) / home=需在家
 // times: 兩套目標時間(home 在家日 / school 上學日),供螢幕/作息類習慣顯示
 const LIB = [
-  { id:'k1',  type:'habit', dom:'螢幕自律', domColor:'indigo',  where:'home',     times:{home:'22:30',school:'21:40'}, label:'睡前準時交機',        desc:'把手機放到充電座、離開房間。這是「能放下」最核心的一塊肌肉。', coin:20, xp:15, honestyEligible:true, icon:'i-moon' },
-  { id:'k2',  type:'habit', dom:'螢幕自律', domColor:'indigo',  where:'home',     times:{home:'22:00',school:'21:20'}, label:'準時結束今天的螢幕',    desc:'到約定時間，自己收手——不是被關掉，是自己停。',            coin:15, xp:12, honestyEligible:true, icon:'i-hour' },
-  { id:'sc3', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'anywhere', label:'今天完全沒偷超時',      sub:'一整天都在約定內',   coin:8, xp:6, icon:'i-check' },
-  { id:'sc4', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'home',     label:'起床後 30 分不碰手機',  sub:'醒來先不抓手機',     coin:8, xp:6, icon:'i-bolt' },
-  { id:'sc5', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'home',     label:'用完手機主動放回充電座', sub:'不用被提醒',        coin:5, xp:4, icon:'i-shield' },
-  { id:'sc6', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'anywhere', label:'吃飯時不看螢幕',        sub:'專心吃飯、聊天',     coin:5, xp:4, icon:'i-heart' },
-  { id:'sl1', type:'habit', dom:'作息自律', domColor:'sky',     where:'anywhere', times:{home:'22:45',school:'22:00'}, label:'準時上床睡覺',        desc:'到睡覺時間就上床，讓身體記住入睡的節奏。',              coin:15, xp:12, honestyEligible:true, icon:'i-moon' },
-  { id:'sl2', type:'task',  dom:'作息自律', domColor:'sky',     where:'anywhere', label:'鬧鐘響第一次就起床',    sub:'不賴床、不按貪睡',   coin:10, xp:8, icon:'i-hour' },
-  { id:'sl3', type:'task',  dom:'作息自律', domColor:'sky',     where:'home',     label:'睡前準備好明天的東西',  sub:'書包、衣服先備好',   coin:5, xp:4, icon:'i-brief' },
-  { id:'ld1', type:'task',  dom:'學習自律', domColor:'teal',    where:'home',     label:'回家先寫完作業再玩',    sub:'不用催',             coin:10, xp:8, icon:'i-brief' },
-  { id:'ld2', type:'task',  dom:'學習自律', domColor:'teal',    where:'home',     label:'專注讀書 30 分',        sub:'中途不滑手機',       coin:10, xp:8, icon:'i-chart' },
-  { id:'ld3', type:'task',  dom:'學習自律', domColor:'teal',    where:'anywhere', label:'主動多做一點',          sub:'預習或複習',         coin:6, xp:5, icon:'i-spark' },
-  { id:'bd1', type:'task',  dom:'身體自律', domColor:'amber',   where:'anywhere', label:'離線運動 30 分',        sub:'跑步 · 球類 · 騎車', coin:8, xp:6, icon:'i-bolt' },
-  { id:'bd2', type:'task',  dom:'身體自律', domColor:'amber',   where:'anywhere', label:'喝足夠的水',            sub:'一天喝滿水',         coin:4, xp:3, icon:'i-target' },
-  { id:'bd3', type:'task',  dom:'身體自律', domColor:'amber',   where:'anywhere', label:'好好吃完正餐',          sub:'不挑食',             coin:4, xp:3, icon:'i-heart' },
-  { id:'rp1', type:'task',  dom:'責任自律', domColor:'teal',    where:'home',     label:'完成一件家事',          sub:'不用被叫',           coin:8, xp:6, icon:'i-check' },
-  { id:'rp2', type:'task',  dom:'責任自律', domColor:'teal',    where:'home',     label:'自己整理房間 / 書桌',   sub:'保持整齊',           coin:5, xp:4, icon:'i-gear' },
-  { id:'rp3', type:'task',  dom:'責任自律', domColor:'teal',    where:'home',     label:'東西用完歸位',          sub:'物歸原處',           coin:4, xp:3, icon:'i-target' },
-  { id:'em1', type:'task',  dom:'情緒自律', domColor:'magenta', where:'anywhere', label:'情緒踩煞車',            sub:'想生氣時先暫停深呼吸', coin:8, xp:6, icon:'i-heart' },
-  { id:'em2', type:'task',  dom:'情緒自律', domColor:'magenta', where:'anywhere', label:'說到做到',              sub:'答應的事有做',       coin:8, xp:6, icon:'i-shield' },
+  { id:'k1',  type:'habit', dom:'螢幕自律', domColor:'indigo',  where:'home',     times:{home:'22:30',school:'21:40'}, label:'睡前準時交機',        desc:'把手機放到充電座、離開房間。這是「能放下」最核心的一塊肌肉。', coin:20, xp:15, honestyEligible:true, unlockRank:0, icon:'i-moon' },
+  { id:'k2',  type:'habit', dom:'螢幕自律', domColor:'indigo',  where:'home',     times:{home:'22:00',school:'21:20'}, label:'準時結束今天的螢幕',    desc:'到約定時間，自己收手——不是被關掉，是自己停。',            coin:15, xp:12, honestyEligible:true, unlockRank:0, icon:'i-hour' },
+  { id:'sc3', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'anywhere', label:'今天完全沒偷超時',      sub:'一整天都在約定內',   coin:8, xp:6, unlockRank:0, icon:'i-check' },
+  { id:'sc4', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'home',     label:'起床後 30 分不碰手機',  sub:'醒來先不抓手機',     coin:8, xp:6, unlockRank:1, icon:'i-bolt' },
+  { id:'sc5', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'home',     label:'用完手機主動放回充電座', sub:'不用被提醒',        coin:5, xp:4, unlockRank:3, icon:'i-shield' },
+  { id:'sc6', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'anywhere', label:'吃飯時不看螢幕',        sub:'專心吃飯、聊天',     coin:5, xp:4, unlockRank:3, icon:'i-heart' },
+  { id:'sl1', type:'habit', dom:'作息自律', domColor:'sky',     where:'anywhere', times:{home:'22:45',school:'22:00'}, label:'準時上床睡覺',        desc:'到睡覺時間就上床，讓身體記住入睡的節奏。',              coin:15, xp:12, honestyEligible:true, unlockRank:2, icon:'i-moon' },
+  { id:'sl2', type:'task',  dom:'作息自律', domColor:'sky',     where:'anywhere', label:'鬧鐘響第一次就起床',    sub:'不賴床、不按貪睡',   coin:10, xp:8, unlockRank:1, icon:'i-hour' },
+  { id:'sl3', type:'task',  dom:'作息自律', domColor:'sky',     where:'home',     label:'睡前準備好明天的東西',  sub:'書包、衣服先備好',   coin:5, xp:4, unlockRank:3, icon:'i-brief' },
+  { id:'ld1', type:'task',  dom:'學習自律', domColor:'teal',    where:'home',     label:'回家先寫完作業再玩',    sub:'不用催',             coin:10, xp:8, unlockRank:0, icon:'i-brief' },
+  { id:'ld2', type:'task',  dom:'學習自律', domColor:'teal',    where:'home',     label:'專注讀書 30 分',        sub:'中途不滑手機',       coin:10, xp:8, unlockRank:2, icon:'i-chart' },
+  { id:'ld3', type:'task',  dom:'學習自律', domColor:'teal',    where:'anywhere', label:'主動多做一點',          sub:'預習或複習',         coin:6, xp:5, unlockRank:3, icon:'i-spark' },
+  { id:'bd1', type:'task',  dom:'身體自律', domColor:'amber',   where:'anywhere', label:'離線運動 30 分',        sub:'跑步 · 球類 · 騎車', coin:8, xp:6, unlockRank:0, icon:'i-bolt' },
+  { id:'bd2', type:'task',  dom:'身體自律', domColor:'amber',   where:'anywhere', label:'喝足夠的水',            sub:'一天喝滿水',         coin:4, xp:3, unlockRank:3, icon:'i-target' },
+  { id:'bd3', type:'task',  dom:'身體自律', domColor:'amber',   where:'anywhere', label:'好好吃完正餐',          sub:'不挑食',             coin:4, xp:3, unlockRank:2, icon:'i-heart' },
+  { id:'rp1', type:'task',  dom:'責任自律', domColor:'teal',    where:'home',     label:'完成一件家事',          sub:'不用被叫',           coin:8, xp:6, unlockRank:1, icon:'i-check' },
+  { id:'rp2', type:'task',  dom:'責任自律', domColor:'teal',    where:'home',     label:'自己整理房間 / 書桌',   sub:'保持整齊',           coin:5, xp:4, unlockRank:3, icon:'i-gear' },
+  { id:'rp3', type:'task',  dom:'責任自律', domColor:'teal',    where:'home',     label:'東西用完歸位',          sub:'物歸原處',           coin:4, xp:3, unlockRank:4, icon:'i-target' },
+  { id:'em1', type:'task',  dom:'情緒自律', domColor:'magenta', where:'anywhere', label:'情緒踩煞車',            sub:'想生氣時先暫停深呼吸', coin:8, xp:6, unlockRank:0, icon:'i-heart' },
+  { id:'em2', type:'task',  dom:'情緒自律', domColor:'magenta', where:'anywhere', label:'說到做到',              sub:'答應的事有做',       coin:8, xp:6, unlockRank:2, icon:'i-shield' },
 ];
 const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const parseYmd = (s) => new Date(s + 'T00:00:00');
@@ -101,7 +101,7 @@ class Component extends DCLogic {
     lastDate: null, dayMode: 'home',
     coins: 0, streak: 0, xp: 0, protects: 0, honest: 0,
     habit: {}, checked: {},
-    taskOn: { k1: true, k2: true, ld1: true, bd1: true },
+    taskOn: { k1: true, k2: true, ld1: true, bd1: true }, manualUnlock: {},
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
@@ -161,6 +161,7 @@ class Component extends DCLogic {
     return changed ? { ...s, checkinEvents: events, coins, xp } : s;
   }
   toggleTaskOn(id) { this.setState(st => ({ taskOn: { ...st.taskOn, [id]: !st.taskOn[id] } })); }
+  unlockTask(id) { this.setState(st => ({ manualUnlock: { ...st.manualUnlock, [id]: true }, taskOn: { ...st.taskOn, [id]: true } })); } // 家長最大:提前解鎖並啟用
   toggleList(id) { this.setState(st => ({ listed: { ...st.listed, [id]: !st.listed[id] } })); }
   jrSel(i) { this.setState({ jrSel: i }); }
   useProtect() { this.setState(st => st.protects > 0 && !st.saved ? { protects: st.protects - 1, streak: st.streak + 1, saved: true } : null); }
@@ -227,7 +228,11 @@ class Component extends DCLogic {
     // 依家長啟用(taskOn)+ 今天模式(dayMode)決定當天實際顯示的任務。
     // 出門日只留「到哪都能做」的任務(where:anywhere)。
     const mode = S.dayMode || 'home';
-    const activeLib = LIB.filter(t => S.taskOn[t.id]);
+    const TIER_XP = [0, 300, 800, 1800, 3500, 6000], TIER_NAMES = ['見習', '銅段', '銀段', '金段', '鑽石', '傳說'];
+    const reached = TIER_XP.reduce((m, thr, i) => S.xp >= thr ? i : m, 0);
+    // 任務解鎖:段位達到 unlockRank 才可用;家長可提前手動解鎖(manualUnlock)
+    const available = (t) => (t.unlockRank || 0) <= reached || !!(S.manualUnlock && S.manualUnlock[t.id]);
+    const activeLib = LIB.filter(t => S.taskOn[t.id] && available(t));
     const dayPool = mode === 'out' ? activeLib.filter(t => t.where === 'anywhere') : activeLib;
     const today = S.lastDate || ymd(new Date());
     const check = React.createElement('svg', { style: { width: 15, height: 15 } }, React.createElement('use', { href: '#i-check' }));
@@ -255,7 +260,7 @@ class Component extends DCLogic {
     const habitRows = dayPool.filter(t => t.type === 'habit').map(h => rowFor(h, '關鍵習慣'));
     const allToday = [...habitRows, ...dailyTasks];
     const jrDefs = [['見習','完全託管，先把節奏建立起來',0,'解鎖每日任務'],['銅段','解鎖 30 分自選時段',300,'自選時段 ×1'],['銀段','週末彈性 +1 小時',800,'週末彈性 +1hr'],['金段','自己設定交機時間',1800,'自訂交機時間'],['鑽石','完全自主，家長只看週報',3500,'完全自主'],['傳說','自律大師 · 名人堂',6000,'名人堂徽章']];
-    const reached = jrDefs.reduce((m, t, i) => S.xp >= t[2] ? i : m, 0), sel = S.jrSel;
+    const sel = S.jrSel;
     // 今日分頁的段位進度卡:全部依目前 XP 動態計算
     const atMaxTier = reached >= jrDefs.length - 1;
     const curTier = jrDefs[reached], nextTier = jrDefs[Math.min(reached + 1, jrDefs.length - 1)];
@@ -307,10 +312,14 @@ class Component extends DCLogic {
     const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
     const week = [['一',100],['二',100],['三',80],['四',100],['五',100],['六',55],['日',100]].map(w => ({ label: w[0], h: Math.round(w[1] * 0.72) + 'px', barBg: w[1] >= 80 ? 'linear-gradient(180deg,#7b7bf0,#5b5bd6)' : '#dfe3ee' }));
     const pRewards = itemsAll.map(it => { const on = !!S.listed[it.id]; return { id: it.id, name: it.name, cost: it.cost + '', iconHref: it.icon, gradient: grads[it.g], onToggle: () => this.toggleList(it.id), tgLabel: on ? '上架中' : '已下架', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
-    // 家長任務管理:任務庫全部列出,開關決定哪些對孩子生效
-    const pTasks = LIB.map(t => { const on = !!S.taskOn[t.id]; const rt = t.honest ? '誠實值 +1' : ('+' + t.xp + 'XP · ' + t.coin + '幣');
-      return { id: t.id, name: t.label, cost: t.dom + ' · ' + rt, iconHref: t.icon, gradient: grads[t.domColor] || grads.indigo,
-        onToggle: () => this.toggleTaskOn(t.id), tgLabel: on ? '啟用中' : '已停用', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
+    // 家長任務管理:任務庫全部列出。鎖定的顯示解鎖段位,家長可提前解鎖(家長最大)
+    const pTasks = LIB.map(t => { const on = !!S.taskOn[t.id], locked = !available(t);
+      const rt = '+' + t.xp + 'XP · ' + t.coin + '幣';
+      return { id: t.id, name: t.label, iconHref: t.icon, gradient: locked ? 'linear-gradient(150deg,#c9cdda,#aab0c0)' : (grads[t.domColor] || grads.indigo),
+        cost: t.dom + ' · ' + rt + (locked ? ' · 🔒 ' + TIER_NAMES[t.unlockRank] + '解鎖' : ''),
+        onToggle: () => locked ? this.unlockTask(t.id) : this.toggleTaskOn(t.id),
+        tgLabel: locked ? '提前解鎖' : (on ? '啟用中' : '已停用'),
+        tgBg: locked ? '#fbf3e2' : (on ? '#eef0ff' : '#f2f3f7'), tgColor: locked ? '#9c6b16' : (on ? '#4a4ac2' : '#9098ab'), tgDot: locked ? '#e0a53a' : (on ? '#5b5bd6' : '#c2c8d6') }; });
     const colors = ['#5b5bd6','#7b7bf0','#35b28a','#cf9a2f','#e0a53a'];
     const confetti = Array.from({ length: 16 }, (_, i) => ({ left: (5 + i * 5.7) + '%', delay: ((i % 6) * 0.11) + 's', dur: (1.1 + (i % 4) * 0.28) + 's', color: colors[i % colors.length], size: (7 + (i % 3) * 3) + 'px' }));
     const K = S.kTab, isKid = S.mode === 'kid';
