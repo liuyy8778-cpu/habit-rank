@@ -69,6 +69,7 @@ class Component extends DCLogic {
     taskOn: { k1: true, k2: true, ld1: true, bd1: true, ho1: true },
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
+    pauses: 0, pausing: false,
   };
   toMode(m) { this.setState({ mode: m }); }
   kGo(t) { this.setState({ kTab: t }); }
@@ -111,6 +112,10 @@ class Component extends DCLogic {
   }
   dayWasSuccessful(s) { const ah = LIB.filter(t => t.type === 'habit' && s.taskOn && s.taskOn[t.id]); return ah.length > 0 && ah.every(h => s.habit && s.habit[h.id] === 'done'); }
   setDayMode(m) { this.setState({ dayMode: m }); }
+  // 衝動延遲:練習「先暫停」的肌肉
+  startPause() { this.setState({ pausing: true }); }
+  resistImpulse() { this.setState(st => ({ pausing: false, pauses: (st.pauses || 0) + 1 })); }
+  cancelPause() { this.setState({ pausing: false }); }
   renderVals() {
     const S = this.state, ACC = '#5b5bd6', GRAD = 'linear-gradient(135deg,#6d6df0,#5b5bd6)';
     const grads = { indigo:'linear-gradient(150deg,#7b7bf0,#5b5bd6)', teal:'linear-gradient(150deg,#4fd0a8,#2fae8a)', amber:'linear-gradient(150deg,#f5c451,#e0a53a)', magenta:'linear-gradient(150deg,#f56bb8,#d23bd0)', sky:'linear-gradient(150deg,#5bb8f0,#3b8ee0)' };
@@ -148,6 +153,12 @@ class Component extends DCLogic {
       rankProg: atMaxTier ? 'MAX' : (S.xp + ' / ' + nextTier[2]),
       rankPct: rankPctNum + '%',
     };
+    // 信任升級制:段位越高,驗證越鬆 —— 贏得的自主權
+    const trust = reached <= 1
+      ? { level: '成長中 · 每次確認', desc: '完成後由家長確認或拍照打卡，一起把節奏建立起來', icon: '#i-shield', color: '#e0a53a', bg: '#fbf3e2' }
+      : reached <= 3
+      ? { level: '受信任 · 隨機抽查', desc: '大多相信你，家長只偶爾抽查', icon: '#i-check', color: '#2f8a6a', bg: '#e8f6ef' }
+      : { level: '完全自主', desc: '完全信任，家長只看週報 —— 這是你贏來的', icon: '#i-crown', color: '#5b5bd6', bg: '#eef0ff' };
     const tiers = jrDefs.map((t, i) => { const stt = i < reached ? 'done' : (i === reached ? 'now' : 'lock'), lock = stt === 'lock', isSel = i === sel;
       return { name:t[0], thr: t[2] === 0 ? '起點' : (t[2] + ' XP'), reward:t[3], onSel: () => this.jrSel(i),
         nodeBg: lock ? '#e7eaf2' : 'linear-gradient(150deg,#7b7bf0,#5b5bd6)', nodeColor: lock ? '#aab0c0' : '#fff',
@@ -203,6 +214,9 @@ class Component extends DCLogic {
       dmSchoolBg: mode === 'school' ? GRAD : '#eef0f6', dmSchoolCol: mode === 'school' ? '#fff' : '#8890a3',
       dmOutBg: mode === 'out' ? GRAD : '#eef0f6', dmOutCol: mode === 'out' ? '#fff' : '#8890a3',
       dayHint: mode === 'out' ? '🚗 出門日 · 只顯示到哪都能做的任務，連續不中斷' : (mode === 'school' ? '📚 上學日 · 晚到家也 OK，交機時間順延' : '☀️ 在家日 · 完整任務、寬鬆時間'),
+      trustLevel: trust.level, trustDesc: trust.desc, trustIcon: trust.icon, trustColor: trust.color, trustBg: trust.bg,
+      pauses: S.pauses || 0, pausing: !!S.pausing, notPausing: !S.pausing,
+      onPauseStart: () => this.startPause(), onResist: () => this.resistImpulse(), onPauseCancel: () => this.cancelPause(),
       pTab: S.pTab, pIsPending: S.pTab === 'pending', pIsReport: S.pTab === 'report', pIsRewards: S.pTab === 'rewards',
       pvP: () => this.pGo('pending'), pvR: () => this.pGo('report'), pvG: () => this.pGo('rewards'),
       pcP: S.pTab === 'pending' ? ACC : '#8890a3', pcR: S.pTab === 'report' ? ACC : '#8890a3', pcG: S.pTab === 'rewards' ? ACC : '#8890a3',
