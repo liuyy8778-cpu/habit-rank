@@ -3700,20 +3700,18 @@
           </div>
         </sc-if>
         <sc-if value="{{ pgTasks }}"><div class="scroll"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 6px">我的習慣</div>
-            <div style="font-size:12.5px;color:#8890a3;margin:0 4px 18px">一次養一個就好，穩了再加下一個。</div>
+            <div style="font-size:12.5px;color:#8890a3;margin:0 4px 18px">點一下就能打勾完成，和「今日」同步。</div>
             <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:16px">
-              <sc-for list="{{ manage }}" as="m" hint-placeholder-count="3">
-                <div style="display:flex;align-items:center;gap:13px;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:15px;box-shadow:0 6px 16px -16px rgba(0,0,0,.4)">
-                  <div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(150deg,#7b7bf0,#5b5bd6);color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:24px;height:24px"><use href="#{{ m.icon }}"></use></svg></div>
-                  <div style="flex:1;min-width:0">
-                    <span style="display:inline-block;background:{{ m.tagBg }};color:{{ m.tagColor }};font-weight:700;font-size:10px;padding:2px 7px;border-radius:6px;margin-bottom:4px">{{ m.tag }}</span>
-                    <div style="font-weight:800;font-size:15px;color:#1a1f2e">{{ m.label }}</div>
-                  </div>
-                  <div style="display:flex;align-items:center;gap:4px;color:#f0704a;flex:none"><svg style="width:17px;height:17px"><use href="#i-flame"></use></svg><span style="font:800 15px 'Baloo 2';color:#1a1f2e">{{ m.streak }}</span></div>
-                </div>
+              <sc-for list="{{ allToday }}" as="a" hint-placeholder-count="5">
+                <button onclick="{{ a.onToggle }}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px;cursor:pointer;transition:transform .1s" style-active="transform:scale(.98)">
+                  <span style="width:28px;height:28px;border-radius:9px;border:2px solid {{ a.boxBorder }};background:{{ a.boxBg }};display:flex;align-items:center;justify-content:center;color:#fff;flex:none">{{ a.boxIcon }}</span>
+                  <span style="width:34px;height:34px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#{{ a.icon }}"></use></svg></span>
+                  <span style="flex:1;min-width:0"><span style="display:block;font-weight:700;font-size:14px;color:#1a1f2e;line-height:1.35">{{ a.label }}</span><span style="display:block;font-size:11px;color:#8890a3;margin-top:1px">{{ a.sub }}</span></span>
+                  <span style="font:700 12px 'Space Grotesk';color:#cf9a2f;white-space:nowrap">{{ a.rewardLabel }}</span>
+                </button>
               </sc-for>
             </div>
-            <button style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:15px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer">+ 新增習慣</button></div></sc-if>
+            <button onclick="{{ onAddHabit }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:15px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.98)">+ 新增 / 管理習慣</button></div></sc-if>
         <sc-if value="{{ pgRank }}"><div class="scroll"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 16px">段位之路</div>
             <div style="background:linear-gradient(150deg,#6d6df0,#5b5bd6);border-radius:22px;padding:18px 20px;margin-bottom:18px;box-shadow:0 14px 28px -16px rgba(91,91,214,.6)">
               <div style="display:flex;align-items:center;gap:13px;margin-bottom:14px">

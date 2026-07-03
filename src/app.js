@@ -136,11 +136,12 @@ class Component extends DCLogic {
       return { id: t.id, icon: t.icon, label: t.label, sub: t.sub, xp: t.xp, coin: t.coin, rewardLabel,
         boxBg: on ? ACC : 'transparent', boxBorder: on ? ACC : '#cdd2df', boxIcon: on ? check : '',
         onToggle: () => t.honest ? this.toggleHonest(t.id) : this.toggleTask(t.id, t.coin, t.xp) }; });
-    const manage = [
-      { label:'睡前準時交機', streak:6, icon:'i-moon', tag:'關鍵習慣', tagBg:'#ebebfb', tagColor:'#4a4ac2' },
-      { label:'準時結束今天的螢幕', streak:6, icon:'i-hour', tag:'關鍵習慣', tagBg:'#ebebfb', tagColor:'#4a4ac2' },
-      { label:'每天離線 30 分', streak:4, icon:'i-bolt', tag:'加分', tagBg:'#e7f6f0', tagColor:'#2f8a6a' },
-    ];
+    // 任務分頁:把今天的關鍵習慣 + 每日任務合成一份可勾選的清單(每列可點)
+    const habitRows = dayPool.filter(t => t.type === 'habit').map(h => { const done = S.habit[h.id] === 'done';
+      return { id: h.id, icon: h.icon, label: h.label, sub: '關鍵習慣', rewardLabel: '+' + h.xp + 'XP · ' + h.coin + '幣',
+        boxBg: done ? ACC : 'transparent', boxBorder: done ? ACC : '#cdd2df', boxIcon: done ? check : '',
+        onToggle: () => this.doHabit(h.id, 'done', h.coin, h.xp) }; });
+    const allToday = [...habitRows, ...dailyTasks];
     const jrDefs = [['見習','完全託管，先把節奏建立起來',0,'解鎖每日任務'],['銅段','解鎖 30 分自選時段',300,'自選時段 ×1'],['銀段','週末彈性 +1 小時',800,'週末彈性 +1hr'],['金段','自己設定交機時間',1800,'自訂交機時間'],['鑽石','完全自主，家長只看週報',3500,'完全自主'],['傳說','自律大師 · 名人堂',6000,'名人堂徽章']];
     const reached = jrDefs.reduce((m, t, i) => S.xp >= t[2] ? i : m, 0), sel = S.jrSel;
     // 今日分頁的段位進度卡:全部依目前 XP 動態計算
@@ -206,7 +207,8 @@ class Component extends DCLogic {
       goToday: () => this.kGo('today'), goTasks: () => this.kGo('tasks'), goRank: () => this.kGo('rank'), goShop: () => this.kGo('shop'), goRecord: () => this.kGo('record'),
       pgToday: K === 'today', pgTasks: K === 'tasks', pgRank: K === 'rank', pgShop: K === 'shop', pgRecord: K === 'record',
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
-      habits, dailyTasks, manage, jr, shop, rec,
+      habits, dailyTasks, allToday, jr, shop, rec,
+      onAddHabit: () => this.setState({ mode: 'parent', pTab: 'rewards' }),
       ...todayRank,
       dayMode: mode,
       onDayHome: () => this.setDayMode('home'), onDaySchool: () => this.setDayMode('school'), onDayOut: () => this.setDayMode('out'),
