@@ -39,8 +39,8 @@ class Component extends DCLogic {
   toMode(m) { this.setState({ mode: m }); }
   kGo(t) { this.setState({ kTab: t }); }
   pGo(t) { this.setState({ pTab: t }); }
-  doHabit(k, v, reward) { this.setState(st => { const cur = st.habit[k] || null, nv = cur === v ? null : v; let coins = st.coins; if (nv === 'done' && cur !== 'done') coins += reward; if (cur === 'done' && nv !== 'done') coins -= reward; return { habit: { ...st.habit, [k]: nv }, coins }; }); }
-  toggleTask(id, coin) { this.setState(st => { const was = !!st.checked[id]; return { checked: { ...st.checked, [id]: !was }, coins: st.coins + (was ? -coin : coin) }; }); }
+  doHabit(k, v, reward, xp) { this.setState(st => { const cur = st.habit[k] || null, nv = cur === v ? null : v; let coins = st.coins, x = st.xp; if (nv === 'done' && cur !== 'done') { coins += reward; x += xp; } if (cur === 'done' && nv !== 'done') { coins -= reward; x -= xp; } return { habit: { ...st.habit, [k]: nv }, coins, xp: x }; }); }
+  toggleTask(id, coin, xp) { this.setState(st => { const was = !!st.checked[id]; return { checked: { ...st.checked, [id]: !was }, coins: st.coins + (was ? -coin : coin), xp: st.xp + (was ? -xp : xp) }; }); }
   toggleList(id) { this.setState(st => ({ listed: { ...st.listed, [id]: !st.listed[id] } })); }
   jrSel(i) { this.setState({ jrSel: i }); }
   useProtect() { this.setState(st => st.protects > 0 && !st.saved ? { protects: st.protects - 1, streak: st.streak + 1, saved: true } : null); }
@@ -53,15 +53,15 @@ class Component extends DCLogic {
     const S = this.state, ACC = '#5b5bd6', GRAD = 'linear-gradient(135deg,#6d6df0,#5b5bd6)';
     const grads = { indigo:'linear-gradient(150deg,#7b7bf0,#5b5bd6)', teal:'linear-gradient(150deg,#4fd0a8,#2fae8a)', amber:'linear-gradient(150deg,#f5c451,#e0a53a)', magenta:'linear-gradient(150deg,#f56bb8,#d23bd0)', sky:'linear-gradient(150deg,#5bb8f0,#3b8ee0)' };
     const habits = [
-      { key:'h1', label:'睡前準時交機', desc:'把手機放到充電座、離開房間。這是「能放下」最核心的一塊肌肉。', reward:30, icon:'#i-moon' },
-      { key:'h2', label:'準時結束今天的螢幕', desc:'到約定時間，自己收手——不是被關掉，是自己停。', reward:20, icon:'#i-hour' },
-    ].map(h => ({ ...h, idle: !S.habit[h.key], done: S.habit[h.key] === 'done', miss: S.habit[h.key] === 'miss', onDone: () => this.doHabit(h.key, 'done', h.reward), onMiss: () => this.doHabit(h.key, 'miss', h.reward) }));
+      { key:'h1', label:'睡前準時交機', desc:'把手機放到充電座、離開房間。這是「能放下」最核心的一塊肌肉。', reward:30, xp:30, icon:'#i-moon' },
+      { key:'h2', label:'準時結束今天的螢幕', desc:'到約定時間，自己收手——不是被關掉，是自己停。', reward:20, xp:20, icon:'#i-hour' },
+    ].map(h => ({ ...h, idle: !S.habit[h.key], done: S.habit[h.key] === 'done', miss: S.habit[h.key] === 'miss', onDone: () => this.doHabit(h.key, 'done', h.reward, h.xp), onMiss: () => this.doHabit(h.key, 'miss', h.reward, h.xp) }));
     const check = React.createElement('svg', { style: { width: 15, height: 15 } }, React.createElement('use', { href: '#i-check' }));
     const dailyTasks = [
       { id:'t1', icon:'#i-check', label:'今天沒有偷超時', sub:'一整天都在約定內', xp:3, coin:12 },
       { id:'t2', icon:'#i-bolt', label:'做一件離線的事 30 分', sub:'運動 · 讀書 · 幫忙', xp:3, coin:12 },
       { id:'t3', icon:'#i-hour', label:'用完手機主動放回充電座', sub:'不用被提醒', xp:2, coin:8 },
-    ].map(t => { const on = !!S.checked[t.id]; return { ...t, boxBg: on ? ACC : 'transparent', boxBorder: on ? ACC : '#cdd2df', boxIcon: on ? check : '', onToggle: () => this.toggleTask(t.id, t.coin) }; });
+    ].map(t => { const on = !!S.checked[t.id]; return { ...t, boxBg: on ? ACC : 'transparent', boxBorder: on ? ACC : '#cdd2df', boxIcon: on ? check : '', onToggle: () => this.toggleTask(t.id, t.coin, t.xp) }; });
     const manage = [
       { label:'睡前準時交機', streak:6, icon:'#i-moon', tag:'關鍵習慣', tagBg:'#ebebfb', tagColor:'#4a4ac2' },
       { label:'準時結束今天的螢幕', streak:6, icon:'#i-hour', tag:'關鍵習慣', tagBg:'#ebebfb', tagColor:'#4a4ac2' },
@@ -69,6 +69,16 @@ class Component extends DCLogic {
     ];
     const jrDefs = [['見習','完全託管，先把節奏建立起來',0,'解鎖每日任務'],['銅段','解鎖 30 分自選時段',150,'自選時段 ×1'],['銀段','週末彈性 +1 小時',400,'週末彈性 +1hr'],['金段','自己設定交機時間',800,'自訂交機時間'],['鑽石','完全自主，家長只看週報',1500,'完全自主'],['傳說','自律大師 · 名人堂',2500,'名人堂徽章']];
     const reached = jrDefs.reduce((m, t, i) => S.xp >= t[2] ? i : m, 0), sel = S.jrSel;
+    // 今日分頁的段位進度卡:全部依目前 XP 動態計算
+    const atMaxTier = reached >= jrDefs.length - 1;
+    const curTier = jrDefs[reached], nextTier = jrDefs[Math.min(reached + 1, jrDefs.length - 1)];
+    const rankPctNum = atMaxTier ? 100 : Math.max(0, Math.min(100, Math.round((S.xp - curTier[2]) / (nextTier[2] - curTier[2]) * 100)));
+    const todayRank = {
+      rankName: curTier[0], rankDesc: curTier[1],
+      rankNextLabel: atMaxTier ? '已達最高段位' : ('距離「' + nextTier[0] + '」解鎖'),
+      rankProg: atMaxTier ? 'MAX' : (S.xp + ' / ' + nextTier[2]),
+      rankPct: rankPctNum + '%',
+    };
     const tiers = jrDefs.map((t, i) => { const stt = i < reached ? 'done' : (i === reached ? 'now' : 'lock'), lock = stt === 'lock', isSel = i === sel;
       return { name:t[0], thr: t[2] === 0 ? '起點' : (t[2] + ' XP'), reward:t[3], onSel: () => this.jrSel(i),
         nodeBg: lock ? '#e7eaf2' : 'linear-gradient(150deg,#7b7bf0,#5b5bd6)', nodeColor: lock ? '#aab0c0' : '#fff',
@@ -113,6 +123,7 @@ class Component extends DCLogic {
       pgToday: K === 'today', pgTasks: K === 'tasks', pgRank: K === 'rank', pgShop: K === 'shop', pgRecord: K === 'record',
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
       habits, dailyTasks, manage, jr, shop, rec,
+      ...todayRank,
       pTab: S.pTab, pIsPending: S.pTab === 'pending', pIsReport: S.pTab === 'report', pIsRewards: S.pTab === 'rewards',
       pvP: () => this.pGo('pending'), pvR: () => this.pGo('report'), pvG: () => this.pGo('rewards'),
       pcP: S.pTab === 'pending' ? ACC : '#8890a3', pcR: S.pTab === 'report' ? ACC : '#8890a3', pcG: S.pTab === 'rewards' ? ACC : '#8890a3',
