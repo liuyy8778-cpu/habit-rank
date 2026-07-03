@@ -33,6 +33,7 @@ class Component extends DCLogic {
     mode: 'kid', kTab: 'today', pTab: 'pending',
     coins: 0, streak: 0, xp: 0, protects: 0, honest: 0,
     habit: {}, checked: {},
+    taskOn: { k1: true, k2: true, ld1: true, bd1: true, ho1: true },
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
   };
@@ -41,6 +42,8 @@ class Component extends DCLogic {
   pGo(t) { this.setState({ pTab: t }); }
   doHabit(k, v, reward, xp) { this.setState(st => { const cur = st.habit[k] || null, nv = cur === v ? null : v; let coins = st.coins, x = st.xp; if (nv === 'done' && cur !== 'done') { coins += reward; x += xp; } if (cur === 'done' && nv !== 'done') { coins -= reward; x -= xp; } return { habit: { ...st.habit, [k]: nv }, coins, xp: x }; }); }
   toggleTask(id, coin, xp) { this.setState(st => { const was = !!st.checked[id]; return { checked: { ...st.checked, [id]: !was }, coins: st.coins + (was ? -coin : coin), xp: st.xp + (was ? -xp : xp) }; }); }
+  toggleHonest(id) { this.setState(st => { const was = !!st.checked[id]; return { checked: { ...st.checked, [id]: !was }, honest: st.honest + (was ? -1 : 1) }; }); }
+  toggleTaskOn(id) { this.setState(st => ({ taskOn: { ...st.taskOn, [id]: !st.taskOn[id] } })); }
   toggleList(id) { this.setState(st => ({ listed: { ...st.listed, [id]: !st.listed[id] } })); }
   jrSel(i) { this.setState({ jrSel: i }); }
   useProtect() { this.setState(st => st.protects > 0 && !st.saved ? { protects: st.protects - 1, streak: st.streak + 1, saved: true } : null); }
@@ -52,22 +55,48 @@ class Component extends DCLogic {
   renderVals() {
     const S = this.state, ACC = '#5b5bd6', GRAD = 'linear-gradient(135deg,#6d6df0,#5b5bd6)';
     const grads = { indigo:'linear-gradient(150deg,#7b7bf0,#5b5bd6)', teal:'linear-gradient(150deg,#4fd0a8,#2fae8a)', amber:'linear-gradient(150deg,#f5c451,#e0a53a)', magenta:'linear-gradient(150deg,#f56bb8,#d23bd0)', sky:'linear-gradient(150deg,#5bb8f0,#3b8ee0)' };
-    const habits = [
-      { key:'h1', label:'睡前準時交機', desc:'把手機放到充電座、離開房間。這是「能放下」最核心的一塊肌肉。', reward:30, xp:30, icon:'#i-moon' },
-      { key:'h2', label:'準時結束今天的螢幕', desc:'到約定時間，自己收手——不是被關掉，是自己停。', reward:20, xp:20, icon:'#i-hour' },
-    ].map(h => ({ ...h, idle: !S.habit[h.key], done: S.habit[h.key] === 'done', miss: S.habit[h.key] === 'miss', onDone: () => this.doHabit(h.key, 'done', h.reward, h.xp), onMiss: () => this.doHabit(h.key, 'miss', h.reward, h.xp) }));
+    // 自律任務庫:6 大領域。type=habit 顯示為「關鍵習慣」大卡(做到/沒做到);type=task 為每日任務勾選列。
+    // honest=true 的任務改餵「誠實值」而非金幣/XP。家長可在「任務管理」開關 taskOn 決定哪些對孩子生效。
+    const LIB = [
+      { id:'k1',  type:'habit', dom:'螢幕自律', domColor:'indigo',  label:'睡前準時交機',          desc:'把手機放到充電座、離開房間。這是「能放下」最核心的一塊肌肉。', coin:20, xp:15, icon:'#i-moon' },
+      { id:'k2',  type:'habit', dom:'螢幕自律', domColor:'indigo',  label:'準時結束今天的螢幕',      desc:'到約定時間，自己收手——不是被關掉，是自己停。',            coin:15, xp:12, icon:'#i-hour' },
+      { id:'sc3', type:'task',  dom:'螢幕自律', domColor:'indigo',  label:'今天完全沒偷超時',        sub:'一整天都在約定內',   coin:8, xp:6, icon:'#i-check' },
+      { id:'sc4', type:'task',  dom:'螢幕自律', domColor:'indigo',  label:'起床後 30 分不碰手機',    sub:'醒來先不抓手機',     coin:8, xp:6, icon:'#i-bolt' },
+      { id:'sc5', type:'task',  dom:'螢幕自律', domColor:'indigo',  label:'用完手機主動放回充電座',  sub:'不用被提醒',         coin:5, xp:4, icon:'#i-shield' },
+      { id:'sc6', type:'task',  dom:'螢幕自律', domColor:'indigo',  label:'吃飯時不看螢幕',          sub:'專心吃飯、聊天',     coin:5, xp:4, icon:'#i-heart' },
+      { id:'sl1', type:'habit', dom:'作息自律', domColor:'sky',     label:'準時上床睡覺',            desc:'到睡覺時間就上床，讓身體記住入睡的節奏。',              coin:15, xp:12, icon:'#i-moon' },
+      { id:'sl2', type:'task',  dom:'作息自律', domColor:'sky',     label:'鬧鐘響第一次就起床',      sub:'不賴床、不按貪睡',   coin:10, xp:8, icon:'#i-hour' },
+      { id:'sl3', type:'task',  dom:'作息自律', domColor:'sky',     label:'睡前準備好明天的東西',    sub:'書包、衣服先備好',   coin:5, xp:4, icon:'#i-brief' },
+      { id:'ld1', type:'task',  dom:'學習自律', domColor:'teal',    label:'回家先寫完作業再玩',      sub:'不用催',             coin:10, xp:8, icon:'#i-brief' },
+      { id:'ld2', type:'task',  dom:'學習自律', domColor:'teal',    label:'專注讀書 30 分',          sub:'中途不滑手機',       coin:10, xp:8, icon:'#i-chart' },
+      { id:'ld3', type:'task',  dom:'學習自律', domColor:'teal',    label:'主動多做一點',            sub:'預習或複習',         coin:6, xp:5, icon:'#i-spark' },
+      { id:'bd1', type:'task',  dom:'身體自律', domColor:'amber',   label:'離線運動 30 分',          sub:'跑步 · 球類 · 騎車', coin:8, xp:6, icon:'#i-bolt' },
+      { id:'bd2', type:'task',  dom:'身體自律', domColor:'amber',   label:'喝足夠的水',              sub:'一天喝滿水',         coin:4, xp:3, icon:'#i-target' },
+      { id:'bd3', type:'task',  dom:'身體自律', domColor:'amber',   label:'好好吃完正餐',            sub:'不挑食',             coin:4, xp:3, icon:'#i-heart' },
+      { id:'rp1', type:'task',  dom:'責任自律', domColor:'teal',    label:'完成一件家事',            sub:'不用被叫',           coin:8, xp:6, icon:'#i-check' },
+      { id:'rp2', type:'task',  dom:'責任自律', domColor:'teal',    label:'自己整理房間 / 書桌',     sub:'保持整齊',           coin:5, xp:4, icon:'#i-gear' },
+      { id:'rp3', type:'task',  dom:'責任自律', domColor:'teal',    label:'東西用完歸位',            sub:'物歸原處',           coin:4, xp:3, icon:'#i-target' },
+      { id:'em1', type:'task',  dom:'情緒自律', domColor:'magenta', label:'情緒踩煞車',              sub:'想生氣時先暫停深呼吸', coin:8, xp:6, icon:'#i-heart' },
+      { id:'em2', type:'task',  dom:'情緒自律', domColor:'magenta', label:'說到做到',                sub:'答應的事有做',       coin:8, xp:6, icon:'#i-shield' },
+      { id:'ho1', type:'task',  dom:'誠實自律', domColor:'magenta', label:'誠實回報',                sub:'包含誠實承認「沒做到」', honest:true, coin:0, xp:0, icon:'#i-user' },
+    ];
+    const activeLib = LIB.filter(t => S.taskOn[t.id]);
     const check = React.createElement('svg', { style: { width: 15, height: 15 } }, React.createElement('use', { href: '#i-check' }));
-    const dailyTasks = [
-      { id:'t1', icon:'#i-check', label:'今天沒有偷超時', sub:'一整天都在約定內', xp:3, coin:12 },
-      { id:'t2', icon:'#i-bolt', label:'做一件離線的事 30 分', sub:'運動 · 讀書 · 幫忙', xp:3, coin:12 },
-      { id:'t3', icon:'#i-hour', label:'用完手機主動放回充電座', sub:'不用被提醒', xp:2, coin:8 },
-    ].map(t => { const on = !!S.checked[t.id]; return { ...t, boxBg: on ? ACC : 'transparent', boxBorder: on ? ACC : '#cdd2df', boxIcon: on ? check : '', onToggle: () => this.toggleTask(t.id, t.coin, t.xp) }; });
+    const habits = activeLib.filter(t => t.type === 'habit').map(h => ({
+      key: h.id, label: h.label, desc: h.desc, reward: h.coin, xp: h.xp, icon: h.icon,
+      idle: !S.habit[h.id], done: S.habit[h.id] === 'done', miss: S.habit[h.id] === 'miss',
+      onDone: () => this.doHabit(h.id, 'done', h.coin, h.xp), onMiss: () => this.doHabit(h.id, 'miss', h.coin, h.xp) }));
+    const dailyTasks = activeLib.filter(t => t.type === 'task').map(t => { const on = !!S.checked[t.id];
+      const rewardLabel = t.honest ? '誠實值 +1' : ('+' + t.xp + 'XP · ' + t.coin + '幣');
+      return { id: t.id, icon: t.icon, label: t.label, sub: t.sub, xp: t.xp, coin: t.coin, rewardLabel,
+        boxBg: on ? ACC : 'transparent', boxBorder: on ? ACC : '#cdd2df', boxIcon: on ? check : '',
+        onToggle: () => t.honest ? this.toggleHonest(t.id) : this.toggleTask(t.id, t.coin, t.xp) }; });
     const manage = [
       { label:'睡前準時交機', streak:6, icon:'#i-moon', tag:'關鍵習慣', tagBg:'#ebebfb', tagColor:'#4a4ac2' },
       { label:'準時結束今天的螢幕', streak:6, icon:'#i-hour', tag:'關鍵習慣', tagBg:'#ebebfb', tagColor:'#4a4ac2' },
       { label:'每天離線 30 分', streak:4, icon:'#i-bolt', tag:'加分', tagBg:'#e7f6f0', tagColor:'#2f8a6a' },
     ];
-    const jrDefs = [['見習','完全託管，先把節奏建立起來',0,'解鎖每日任務'],['銅段','解鎖 30 分自選時段',150,'自選時段 ×1'],['銀段','週末彈性 +1 小時',400,'週末彈性 +1hr'],['金段','自己設定交機時間',800,'自訂交機時間'],['鑽石','完全自主，家長只看週報',1500,'完全自主'],['傳說','自律大師 · 名人堂',2500,'名人堂徽章']];
+    const jrDefs = [['見習','完全託管，先把節奏建立起來',0,'解鎖每日任務'],['銅段','解鎖 30 分自選時段',300,'自選時段 ×1'],['銀段','週末彈性 +1 小時',800,'週末彈性 +1hr'],['金段','自己設定交機時間',1800,'自訂交機時間'],['鑽石','完全自主，家長只看週報',3500,'完全自主'],['傳說','自律大師 · 名人堂',6000,'名人堂徽章']];
     const reached = jrDefs.reduce((m, t, i) => S.xp >= t[2] ? i : m, 0), sel = S.jrSel;
     // 今日分頁的段位進度卡:全部依目前 XP 動態計算
     const atMaxTier = reached >= jrDefs.length - 1;
@@ -89,12 +118,12 @@ class Component extends DCLogic {
     const jr = { tiers, selName: jrDefs[sel][0], selUnlock: jrDefs[sel][1], selReward: jrDefs[sel][3], nextName: jrDefs[Math.min(reached + 1, jrDefs.length - 1)][0],
       selBadge: selState === 'done' ? '已達成' : (selState === 'now' ? '進行中' : '未解鎖'), selBadgeBg: selState === 'lock' ? '#eef0f6' : '#eef0ff', selBadgeColor: selState === 'lock' ? '#8890a3' : '#4a4ac2' };
     const itemsAll = [
-      { id:'s1', name:'週末 +30 分 螢幕時段', cost:120, cat:'screen', icon:'#i-hour', g:'indigo', tag:'HOT' },
-      { id:'s2', name:'電影夜選片權', cost:200, cat:'perk', icon:'#i-gift', g:'magenta', tag:'' },
-      { id:'s3', name:'朋友來家裡過夜', cost:500, cat:'outing', icon:'#i-spark', g:'amber', tag:'新' },
-      { id:'s4', name:'週五交機延 30 分', cost:150, cat:'screen', icon:'#i-moon', g:'sky', tag:'' },
-      { id:'s5', name:'家庭出遊選地點', cost:350, cat:'outing', icon:'#i-target', g:'teal', tag:'' },
-      { id:'s6', name:'一次免家事券', cost:180, cat:'perk', icon:'#i-shield', g:'indigo', tag:'' },
+      { id:'s1', name:'週末 +30 分 螢幕時段', cost:250, cat:'screen', icon:'#i-hour', g:'indigo', tag:'HOT' },
+      { id:'s2', name:'電影夜選片權', cost:350, cat:'perk', icon:'#i-gift', g:'magenta', tag:'' },
+      { id:'s3', name:'朋友來家裡過夜', cost:1200, cat:'outing', icon:'#i-spark', g:'amber', tag:'新' },
+      { id:'s4', name:'週五交機延 30 分', cost:250, cat:'screen', icon:'#i-moon', g:'sky', tag:'' },
+      { id:'s5', name:'家庭出遊選地點', cost:800, cat:'outing', icon:'#i-target', g:'teal', tag:'' },
+      { id:'s6', name:'一次免家事券', cost:450, cat:'perk', icon:'#i-shield', g:'indigo', tag:'' },
     ];
     const shop = itemsAll.filter(it => S.listed[it.id]).map(it => { const rd = !!S.redeemed[it.id], afford = S.coins >= it.cost;
       return { ...it, gradient: grads[it.g], costLabel: '' + it.cost, hasTag: !!it.tag,
@@ -113,6 +142,10 @@ class Component extends DCLogic {
     const pWait = pItems.filter(i => i.wait).length;
     const week = [['一',100],['二',100],['三',80],['四',100],['五',100],['六',55],['日',100]].map(w => ({ label: w[0], h: Math.round(w[1] * 0.72) + 'px', barBg: w[1] >= 80 ? 'linear-gradient(180deg,#7b7bf0,#5b5bd6)' : '#dfe3ee' }));
     const pRewards = itemsAll.map(it => { const on = !!S.listed[it.id]; return { id: it.id, name: it.name, cost: it.cost + '', iconHref: it.icon, gradient: grads[it.g], onToggle: () => this.toggleList(it.id), tgLabel: on ? '上架中' : '已下架', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
+    // 家長任務管理:任務庫全部列出,開關決定哪些對孩子生效
+    const pTasks = LIB.map(t => { const on = !!S.taskOn[t.id]; const rt = t.honest ? '誠實值 +1' : ('+' + t.xp + 'XP · ' + t.coin + '幣');
+      return { id: t.id, name: t.label, cost: t.dom + ' · ' + rt, iconHref: t.icon, gradient: grads[t.domColor] || grads.indigo,
+        onToggle: () => this.toggleTaskOn(t.id), tgLabel: on ? '啟用中' : '已停用', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
     const colors = ['#5b5bd6','#7b7bf0','#35b28a','#cf9a2f','#e0a53a'];
     const confetti = Array.from({ length: 16 }, (_, i) => ({ left: (5 + i * 5.7) + '%', delay: ((i % 6) * 0.11) + 's', dur: (1.1 + (i % 4) * 0.28) + 's', color: colors[i % colors.length], size: (7 + (i % 3) * 3) + 'px' }));
     const K = S.kTab, isKid = S.mode === 'kid';
@@ -128,7 +161,7 @@ class Component extends DCLogic {
       pvP: () => this.pGo('pending'), pvR: () => this.pGo('report'), pvG: () => this.pGo('rewards'),
       pcP: S.pTab === 'pending' ? ACC : '#8890a3', pcR: S.pTab === 'report' ? ACC : '#8890a3', pcG: S.pTab === 'rewards' ? ACC : '#8890a3',
       pbP: S.pTab === 'pending' ? '#eef0ff' : 'transparent', pbR: S.pTab === 'report' ? '#eef0ff' : 'transparent', pbG: S.pTab === 'rewards' ? '#eef0ff' : 'transparent',
-      pItems, pWaitLabel: pWait > 0 ? (pWait + ' 筆待確認') : '今天都確認完了', week, pRewards,
+      pItems, pWaitLabel: pWait > 0 ? (pWait + ' 筆待確認') : '今天都確認完了', week, pRewards, pTasks,
       onUseProtect: () => this.useProtect(), saved: S.saved, protectIdle: !S.saved,
       openCeleb: () => this.openCeleb(), closeCeleb: () => this.closeCeleb(), celebrate: S.celebrate,
       fxShow: !!S.fx, fxName: S.fx ? S.fx.name : '', fxIcon: S.fx ? S.fx.icon : '#i-gift', fxGrad: S.fx ? S.fx.gradient : GRAD, fxSpent: S.fx ? S.fx.spent : 0, fxLeft: S.fx ? S.fx.left : 0, fxClose: () => this.closeFx(),
