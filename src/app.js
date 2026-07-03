@@ -30,6 +30,8 @@ const parseYmd = (s) => new Date(s + 'T00:00:00');
 const dayGap = (a, b) => Math.round((parseYmd(b) - parseYmd(a)) / 86400000);
 // 依日期決定當天預設模式:週末→在家;平日→暑假(7、8 月)在家,否則上學日
 const defaultDayMode = (dateStr) => { const d = parseYmd(dateStr), dow = d.getDay(), m = d.getMonth() + 1; if (dow === 0 || dow === 6) return 'home'; return (m === 7 || m === 8) ? 'home' : 'school'; };
+// 版本號:@@BUILD@@ 於 build.py 打包時自動代入(日期 · 建置編號),用來判斷手機/網頁是否同版
+const APP_VERSION = 'v1.0 · @@BUILD@@';
 
 class Component extends DCLogic {
   constructor(props) {
@@ -207,7 +209,7 @@ class Component extends DCLogic {
       goToday: () => this.kGo('today'), goTasks: () => this.kGo('tasks'), goRank: () => this.kGo('rank'), goShop: () => this.kGo('shop'), goRecord: () => this.kGo('record'),
       pgToday: K === 'today', pgTasks: K === 'tasks', pgRank: K === 'rank', pgShop: K === 'shop', pgRecord: K === 'record',
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
-      habits, dailyTasks, allToday, jr, shop, rec,
+      habits, dailyTasks, allToday, jr, shop, rec, appVersion: APP_VERSION,
       onAddHabit: () => this.setState({ mode: 'parent', pTab: 'rewards' }),
       ...todayRank,
       dayMode: mode,

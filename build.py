@@ -38,6 +38,15 @@ assets[RUNTIME_UUID] = {
 }
 manifest = json.dumps(assets, ensure_ascii=False)
 
+# 0.5) 版本戳記:日期 · 建置編號(git commit 數),每次 build 自動變動
+import datetime, subprocess
+try:
+    _count = subprocess.check_output(["git", "rev-list", "--count", "HEAD"]).decode().strip()
+except Exception:
+    _count = "0"
+build_id = datetime.date.today().strftime("%Y.%m.%d") + " · b" + _count
+app_js = app_js.replace("@@BUILD@@", build_id)
+
 # 1) 把 app 邏輯注入版面模板
 if "@@APP_JS@@" not in template:
     raise SystemExit("錯誤：src/template.html 找不到 @@APP_JS@@ 標記")
