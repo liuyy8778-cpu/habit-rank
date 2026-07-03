@@ -3680,7 +3680,7 @@
                 <sc-if value="{{ h.miss }}">
                   <div style="display:flex;align-items:center;gap:10px;background:#f6efe0;border-radius:15px;padding:13px 15px;animation:popIn .4s both">
                     <div style="width:30px;height:30px;border-radius:9px;background:#cf9a2f;color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:17px;height:17px"><use href="#i-heart"></use></svg></div>
-                    <div style="flex:1"><div style="font-weight:700;font-size:13.5px;color:#9c6b16">誠實回報 · +1 誠實分</div><div style="font-size:11.5px;color:#94856a">連續會斷，但這比騙過去更值錢。</div></div>
+                    <div style="flex:1"><div style="font-weight:700;font-size:13.5px;color:#9c6b16">誠實回報 · +5 XP 已入帳</div><div style="font-size:11.5px;color:#94856a">誠實比騙過去更值錢，連續不會斷。</div></div>
                     <button onclick="{{ h.onDone }}" style="border:0;background:none;color:#8890a3;font-size:12px;cursor:pointer;text-decoration:underline">改</button>
                   </div>
                 </sc-if>
@@ -3779,11 +3779,6 @@
               <div style="font-size:12px;color:#8890a3;line-height:1.55;margin-bottom:13px">斷一天不會馬上歸零。用 1 張就能把昨天補回來。</div>
               <sc-if value="{{ protectIdle }}" hint-placeholder-val="{{ true }}"><button onclick="{{ onUseProtect }}" style="width:100%;border:0;border-radius:13px;padding:13px;background:#eef0ff;color:#4a4ac2;font:800 13.5px 'Noto Sans TC';cursor:pointer">昨天忘了？用 1 張補回 →</button></sc-if>
               <sc-if value="{{ saved }}"><div style="display:flex;align-items:center;gap:9px;background:#e7f6f0;border-radius:13px;padding:12px 14px;animation:popIn .4s both"><span style="color:#2f8a6a;display:flex"><svg style="width:19px;height:19px"><use href="#i-shield"></use></svg></span><div><div style="font-weight:800;font-size:13px;color:#2f6b53">連續已保住 · {{ streak }} 天</div><div style="font-size:11px;color:#5a8a68">用掉 1 張保護卡</div></div></div></sc-if>
-            </div>
-            <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:20px;padding:17px;margin-bottom:20px">
-              <div style="display:flex;align-items:center;gap:9px;margin-bottom:5px"><span style="color:#35b28a;display:flex"><svg style="width:19px;height:19px"><use href="#i-heart"></use></svg></span><span style="font-weight:800;font-size:14.5px;color:#1a1f2e">誠實分</span><span style="margin-left:auto;font:700 13px 'Space Grotesk';color:#35b28a">{{ honest }} / 3</span></div>
-              <div style="font-size:12px;color:#8890a3;line-height:1.55;margin-bottom:12px">每誠實回報一次 +1，集滿 3 分換 1 張保護卡。</div>
-              <div style="height:10px;background:#e7f6f0;border-radius:6px;overflow:hidden"><div style="height:100%;width:{{ honestPct }};background:linear-gradient(90deg,#4fb98f,#35b28a);border-radius:6px;transition:width .5s"></div></div>
             </div>
             <div style="font-weight:800;font-size:14px;color:#1a1f2e;margin:0 4px 12px">最近四週</div>
             <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:20px;padding:16px">

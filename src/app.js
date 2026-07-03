@@ -3,13 +3,13 @@
 // where: anywhere=到哪都能做(出門日仍顯示) / home=需在家
 // times: 兩套目標時間(home 在家日 / school 上學日),供螢幕/作息類習慣顯示
 const LIB = [
-  { id:'k1',  type:'habit', dom:'螢幕自律', domColor:'indigo',  where:'home',     times:{home:'22:30',school:'21:40'}, label:'睡前準時交機',        desc:'把手機放到充電座、離開房間。這是「能放下」最核心的一塊肌肉。', coin:20, xp:15, icon:'i-moon' },
-  { id:'k2',  type:'habit', dom:'螢幕自律', domColor:'indigo',  where:'home',     times:{home:'22:00',school:'21:20'}, label:'準時結束今天的螢幕',    desc:'到約定時間，自己收手——不是被關掉，是自己停。',            coin:15, xp:12, icon:'i-hour' },
+  { id:'k1',  type:'habit', dom:'螢幕自律', domColor:'indigo',  where:'home',     times:{home:'22:30',school:'21:40'}, label:'睡前準時交機',        desc:'把手機放到充電座、離開房間。這是「能放下」最核心的一塊肌肉。', coin:20, xp:15, honestyEligible:true, icon:'i-moon' },
+  { id:'k2',  type:'habit', dom:'螢幕自律', domColor:'indigo',  where:'home',     times:{home:'22:00',school:'21:20'}, label:'準時結束今天的螢幕',    desc:'到約定時間，自己收手——不是被關掉，是自己停。',            coin:15, xp:12, honestyEligible:true, icon:'i-hour' },
   { id:'sc3', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'anywhere', label:'今天完全沒偷超時',      sub:'一整天都在約定內',   coin:8, xp:6, icon:'i-check' },
   { id:'sc4', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'home',     label:'起床後 30 分不碰手機',  sub:'醒來先不抓手機',     coin:8, xp:6, icon:'i-bolt' },
   { id:'sc5', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'home',     label:'用完手機主動放回充電座', sub:'不用被提醒',        coin:5, xp:4, icon:'i-shield' },
   { id:'sc6', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'anywhere', label:'吃飯時不看螢幕',        sub:'專心吃飯、聊天',     coin:5, xp:4, icon:'i-heart' },
-  { id:'sl1', type:'habit', dom:'作息自律', domColor:'sky',     where:'anywhere', times:{home:'22:45',school:'22:00'}, label:'準時上床睡覺',        desc:'到睡覺時間就上床，讓身體記住入睡的節奏。',              coin:15, xp:12, icon:'i-moon' },
+  { id:'sl1', type:'habit', dom:'作息自律', domColor:'sky',     where:'anywhere', times:{home:'22:45',school:'22:00'}, label:'準時上床睡覺',        desc:'到睡覺時間就上床，讓身體記住入睡的節奏。',              coin:15, xp:12, honestyEligible:true, icon:'i-moon' },
   { id:'sl2', type:'task',  dom:'作息自律', domColor:'sky',     where:'anywhere', label:'鬧鐘響第一次就起床',    sub:'不賴床、不按貪睡',   coin:10, xp:8, icon:'i-hour' },
   { id:'sl3', type:'task',  dom:'作息自律', domColor:'sky',     where:'home',     label:'睡前準備好明天的東西',  sub:'書包、衣服先備好',   coin:5, xp:4, icon:'i-brief' },
   { id:'ld1', type:'task',  dom:'學習自律', domColor:'teal',    where:'home',     label:'回家先寫完作業再玩',    sub:'不用催',             coin:10, xp:8, icon:'i-brief' },
@@ -23,7 +23,6 @@ const LIB = [
   { id:'rp3', type:'task',  dom:'責任自律', domColor:'teal',    where:'home',     label:'東西用完歸位',          sub:'物歸原處',           coin:4, xp:3, icon:'i-target' },
   { id:'em1', type:'task',  dom:'情緒自律', domColor:'magenta', where:'anywhere', label:'情緒踩煞車',            sub:'想生氣時先暫停深呼吸', coin:8, xp:6, icon:'i-heart' },
   { id:'em2', type:'task',  dom:'情緒自律', domColor:'magenta', where:'anywhere', label:'說到做到',              sub:'答應的事有做',       coin:8, xp:6, icon:'i-shield' },
-  { id:'ho1', type:'task',  dom:'誠實自律', domColor:'magenta', where:'anywhere', label:'誠實回報',              sub:'包含誠實承認「沒做到」', honest:true, coin:0, xp:0, icon:'i-user' },
 ];
 const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const parseYmd = (s) => new Date(s + 'T00:00:00');
@@ -43,12 +42,20 @@ const CONFIG = {
 
 // ===== 資料遷移:localStorage schema 版本控管 =====
 // 每次啟動檢查版本,舊資料無損升級並先備份到 backup_v1。
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 function migrateToV2(s) {
   if (!s || s.schemaVersion === SCHEMA_VERSION) return s;
-  try { localStorage.setItem('habitRank_backup_v1', JSON.stringify(s)); } catch (e) {}
+  let v = s.schemaVersion || 1;
   const m = { ...s };
-  if (!Array.isArray(m.checkinEvents)) m.checkinEvents = [];   // append-only 打卡事件流(未來搬 Supabase)
+  if (v < 2) {
+    try { localStorage.setItem('habitRank_backup_v1', JSON.stringify(s)); } catch (e) {}
+    if (!Array.isArray(m.checkinEvents)) m.checkinEvents = [];   // append-only 打卡事件流(未來搬 Supabase)
+    v = 2;
+  }
+  if (v < 3) {                                                   // 誠實值 → 一次性 XP(1:1),移除獨立貨幣
+    if (m.honest) { m.xp = (m.xp || 0) + m.honest; m.honest = 0; }
+    v = 3;
+  }
   m.schemaVersion = SCHEMA_VERSION;
   return m;
 }
@@ -90,11 +97,11 @@ class Component extends DCLogic {
   }
   state = {
     mode: 'kid', kTab: 'today', pTab: 'pending',
-    schemaVersion: 2, checkinEvents: [],
+    schemaVersion: 3, checkinEvents: [],
     lastDate: null, dayMode: 'home',
     coins: 0, streak: 0, xp: 0, protects: 0, honest: 0,
     habit: {}, checked: {},
-    taskOn: { k1: true, k2: true, ld1: true, bd1: true, ho1: true },
+    taskOn: { k1: true, k2: true, ld1: true, bd1: true },
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
@@ -102,23 +109,28 @@ class Component extends DCLogic {
   toMode(m) { this.setState({ mode: m }); }
   kGo(t) { this.setState({ kTab: t }); }
   pGo(t) { this.setState({ pTab: t }); }
-  // 小孩送出打卡(習慣「做到」/ 任務勾選):建立 pending 事件,不立即入帳(等家長確認)
+  // 小孩送出「做到」:建立 pending 事件,不立即入帳(等家長確認)。honestyEligible 任務 XP×1.5。
   submitCheckin(b) {
     this.setState(st => {
-      const day = st.lastDate, evs = st.checkinEvents || [];
-      const cur = todayEventOf(evs, b.id, day);
-      if (cur && cur.verdict === 'pending') return { checkinEvents: evs.filter(e => e !== cur), habit: { ...st.habit, [b.id]: null } }; // 再按一次=收回
-      if (cur) return null; // 已確認/自動過:不動
-      const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: b.coin, xp: b.xp, honest: false, ts: Date.now(), date: day, verdict: 'pending' };
-      return { checkinEvents: [...evs, ev], habit: { ...st.habit, [b.id]: null } };
+      const day = st.lastDate, cur = todayEventOf(st.checkinEvents, b.id, day);
+      if (cur && !cur.honest && cur.verdict === 'pending') return { checkinEvents: st.checkinEvents.filter(e => e !== cur) }; // 再按=收回
+      if (cur && !cur.honest && (cur.verdict === 'approved' || cur.verdict === 'auto')) return null; // 做到已入帳鎖定
+      const rest = cur ? st.checkinEvents.filter(e => e !== cur) : st.checkinEvents;   // 清掉誠實回報 / 已退回
+      const refund = (cur && cur.honest) ? CONFIG.honestMissXP : 0;                    // 從誠實回報改為做到 → 退回小額 XP
+      const xp = b.honestyEligible ? Math.round(b.xp * 1.5) : b.xp;
+      const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: b.coin, xp, honest: false, ts: Date.now(), date: day, verdict: 'pending' };
+      return { checkinEvents: [...rest, ev], xp: st.xp - refund };
     });
   }
-  // 關鍵習慣「沒做到」= 誠實回報(階段 1 先只記本地,誠實 XP 於階段 2 接)
-  markMiss(id) {
+  // 「沒做到」= 誠實回報:立即入帳固定小額 XP(無需家長確認,因為承認失敗沒什麼好造假),連續不斷。
+  markMiss(b) {
     this.setState(st => {
-      const cur = todayEventOf(st.checkinEvents, id, st.lastDate);
-      const evs = (cur && cur.verdict === 'pending') ? st.checkinEvents.filter(e => e !== cur) : st.checkinEvents;
-      return { checkinEvents: evs, habit: { ...st.habit, [id]: st.habit[id] === 'miss' ? null : 'miss' } };
+      const day = st.lastDate, cur = todayEventOf(st.checkinEvents, b.id, day);
+      if (cur && cur.honest) return { checkinEvents: st.checkinEvents.filter(e => e !== cur), xp: st.xp - CONFIG.honestMissXP }; // 再按=收回並退回 XP
+      if (cur && !cur.honest && (cur.verdict === 'approved' || cur.verdict === 'auto')) return null; // 已入帳鎖定
+      const rest = cur ? st.checkinEvents.filter(e => e !== cur) : st.checkinEvents;
+      const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: 0, xp: CONFIG.honestMissXP, honest: true, ts: Date.now(), date: day, verdict: 'approved' };
+      return { checkinEvents: [...rest, ev], xp: st.xp + CONFIG.honestMissXP };
     });
   }
   // 家長逐項確認:通過才入帳
@@ -220,27 +232,27 @@ class Component extends DCLogic {
     const today = S.lastDate || ymd(new Date());
     const check = React.createElement('svg', { style: { width: 15, height: 15 } }, React.createElement('use', { href: '#i-check' }));
     const clock = React.createElement('svg', { style: { width: 15, height: 15 } }, React.createElement('use', { href: '#i-hour' }));
-    // 每個行為今天的狀態:idle / pending(待確認)/ approved / auto / rejected / miss
-    const statusOf = (id) => { const ev = todayEventOf(S.checkinEvents, id, today); return ev ? ev.verdict : (S.habit[id] === 'miss' ? 'miss' : 'idle'); };
+    // 每個行為今天的事件(單一真相):done=非誠實打卡、miss=誠實回報沒做到
+    const evOf = (id) => todayEventOf(S.checkinEvents, id, today);
     const habits = dayPool.filter(t => t.type === 'habit').map(h => {
       const tt = (mode !== 'out' && h.times) ? h.times[mode === 'school' ? 'school' : 'home'] : '';
       const desc = h.desc + (tt ? '　⏰ 今天目標 ' + tt + ' 前' : '');
-      const s = statusOf(h.id), submitted = s === 'pending' || s === 'approved' || s === 'auto', credited = s === 'approved' || s === 'auto';
+      const ev = evOf(h.id), miss = !!(ev && ev.honest), done = !!(ev && !ev.honest), credited = !!(ev && (ev.verdict === 'approved' || ev.verdict === 'auto'));
       return { key: h.id, label: h.label, desc, reward: h.coin, xp: h.xp, icon: h.icon,
-        idle: s === 'idle' || s === 'rejected', submitted, miss: s === 'miss', canUndo: s === 'pending',
+        idle: !ev || ev.verdict === 'rejected', submitted: done, miss, canUndo: done && ev.verdict === 'pending',
         subLabel: credited ? '已確認入帳 ✓' : '已送去給爸媽確認',
         subSub: credited ? ('+' + h.coin + '幣 已入帳') : ('+' + h.coin + '幣 待入帳'),
-        onDone: () => this.submitCheckin({ id: h.id, label: h.label, icon: h.icon, kind: 'habit', coin: h.coin, xp: h.xp }),
-        onMiss: () => this.markMiss(h.id) }; });
-    const rowFor = (o, sub, coin, xp) => { const s = statusOf(o.id), pending = s === 'pending', done = s === 'approved' || s === 'auto';
+        onDone: () => this.submitCheckin({ id: h.id, label: h.label, icon: h.icon, kind: 'habit', coin: h.coin, xp: h.xp, honestyEligible: h.honestyEligible }),
+        onMiss: () => this.markMiss({ id: h.id, label: h.label, icon: h.icon, kind: 'habit' }) }; });
+    const rowFor = (o, sub) => { const ev = evOf(o.id), pending = !!(ev && !ev.honest && ev.verdict === 'pending'), done = !!(ev && !ev.honest && (ev.verdict === 'approved' || ev.verdict === 'auto'));
       return { id: o.id, icon: o.icon, label: o.label, sub,
-        rewardLabel: pending ? '待確認' : (done ? '已入帳 ✓' : (o.honest ? '誠實回報' : ('+' + xp + 'XP · ' + coin + '幣'))),
+        rewardLabel: pending ? '待確認' : (done ? '已入帳 ✓' : ('+' + o.xp + 'XP · ' + o.coin + '幣')),
         boxBg: done ? ACC : (pending ? '#f6efe0' : 'transparent'), boxBorder: done ? ACC : (pending ? '#e0a53a' : '#cdd2df'),
         boxIcon: done ? check : (pending ? clock : ''),
-        onToggle: () => this.submitCheckin({ id: o.id, label: o.label, icon: o.icon, kind: o.type, coin, xp }) }; };
-    const dailyTasks = dayPool.filter(t => t.type === 'task').map(t => rowFor(t, t.sub, t.honest ? 0 : t.coin, t.honest ? 0 : t.xp));
+        onToggle: () => this.submitCheckin({ id: o.id, label: o.label, icon: o.icon, kind: o.type, coin: o.coin, xp: o.xp, honestyEligible: o.honestyEligible }) }; };
+    const dailyTasks = dayPool.filter(t => t.type === 'task').map(t => rowFor(t, t.sub));
     // 任務分頁:把今天的關鍵習慣 + 每日任務合成一份可點清單
-    const habitRows = dayPool.filter(t => t.type === 'habit').map(h => rowFor(h, '關鍵習慣', h.coin, h.xp));
+    const habitRows = dayPool.filter(t => t.type === 'habit').map(h => rowFor(h, '關鍵習慣'));
     const allToday = [...habitRows, ...dailyTasks];
     const jrDefs = [['見習','完全託管，先把節奏建立起來',0,'解鎖每日任務'],['銅段','解鎖 30 分自選時段',300,'自選時段 ×1'],['銀段','週末彈性 +1 小時',800,'週末彈性 +1hr'],['金段','自己設定交機時間',1800,'自訂交機時間'],['鑽石','完全自主，家長只看週報',3500,'完全自主'],['傳說','自律大師 · 名人堂',6000,'名人堂徽章']];
     const reached = jrDefs.reduce((m, t, i) => S.xp >= t[2] ? i : m, 0), sel = S.jrSel;
