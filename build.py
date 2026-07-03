@@ -15,15 +15,28 @@
 或 src/template.html(版面、顏色、排版),再跑一次 build.py 就好。
 vendor/ 底下是框架與字型,不需要編輯。
 """
+import base64
+import gzip
 import json
 import pathlib
 
 ROOT = pathlib.Path(__file__).parent
+RUNTIME_UUID = "b645423f-39af-4708-ab22-59ebc51bb268"
 
 app_js   = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
 template = (ROOT / "src" / "template.html").read_text(encoding="utf-8")
 loader   = (ROOT / "vendor" / "loader.html").read_text(encoding="utf-8")
-manifest = (ROOT / "vendor" / "assets.json").read_text(encoding="utf-8").strip()
+assets   = json.loads((ROOT / "vendor" / "assets.json").read_text(encoding="utf-8"))
+
+# 0) 從 vendor/runtime.js 重新產生 runtime 資產(runtime.js 為真實來源;
+#    這樣改 runtime.js 的 CDN 路徑等設定才會生效)。字型資產維持不變。
+runtime_src = (ROOT / "vendor" / "runtime.js").read_text(encoding="utf-8").encode("utf-8")
+assets[RUNTIME_UUID] = {
+    "mime": "text/javascript",
+    "compressed": True,
+    "data": base64.b64encode(gzip.compress(runtime_src)).decode("ascii"),
+}
+manifest = json.dumps(assets, ensure_ascii=False)
 
 # 1) 把 app 邏輯注入版面模板
 if "@@APP_JS@@" not in template:

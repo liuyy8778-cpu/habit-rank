@@ -40,6 +40,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   // Error sink persists across replaceWith since it's on window, not the DOM.
   window.addEventListener('error', function(e) {
+    // 忽略資源載入錯誤(如 x-dc 模板裡未解析的 <use href="{{ ... }}"> 一次性 404),
+    // 這類事件 target 是元素而非 window、且無 message。真正的 JS 錯誤仍會顯示。
+    if (e.target && e.target !== window && !e.message) return;
     var p = document.body || document.documentElement;
     var d = document.getElementById('__bundler_err') || p.appendChild(document.createElement('div'));
     d.id = '__bundler_err';
