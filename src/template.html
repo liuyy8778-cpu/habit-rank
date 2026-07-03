@@ -3744,6 +3744,21 @@
                   </button>
                 </sc-for>
               </div>
+            </div>
+            <div style="font-weight:900;font-size:18px;color:#1a1f2e;margin:26px 4px 6px">信任 · 你贏來的自主權</div>
+            <div style="font-size:12px;color:#8890a3;margin:0 4px 14px;line-height:1.5">跟段位不同——這是「最近多可靠」。連續誠實回報 + 真的有做到，就能從「每次確認」→「隨機抽查」→「畢業免驗證」。</div>
+            <div style="display:flex;flex-direction:column;gap:11px">
+              <sc-for list="{{ trustLines }}" as="tl" hint-placeholder-count="2">
+                <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:15px">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:11px">
+                    <div style="width:34px;height:34px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:19px;height:19px"><use href="#{{ tl.icon }}"></use></svg></div>
+                    <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:#1a1f2e">{{ tl.label }}</div><div style="font-size:11px;color:#8890a3;margin-top:1px">{{ tl.rateLabel }}</div></div>
+                    <span style="background:{{ tl.badgeBg }};color:{{ tl.badgeColor }};font-weight:700;font-size:11px;padding:4px 10px;border-radius:8px;white-space:nowrap">{{ tl.levelName }}</span>
+                  </div>
+                  <div style="font-size:11.5px;color:#8890a3;margin-bottom:6px">{{ tl.progLabel }}</div>
+                  <div style="height:8px;background:#eef0f6;border-radius:5px;overflow:hidden"><div style="height:100%;width:{{ tl.progPct }};background:linear-gradient(90deg,#7b7bf0,#5b5bd6);border-radius:5px"></div></div>
+                </div>
+              </sc-for>
             </div></div></sc-if>
         <sc-if value="{{ pgShop }}"><div class="scroll"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 4px">獎勵商城</div>
             <div style="font-size:12.5px;color:#8890a3;margin:0 4px 16px">攢來的金幣，換一點自由</div>

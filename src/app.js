@@ -38,7 +38,10 @@ const CONFIG = {
   promoteMinAchieveRate: 0.6,  // 信任升級的達成率地板(擺爛畢不了業)
   autoApproveHours: 48,        // 待確認超時自動放行(中性日)
   sealHoldMs: 2000,            // 公約蓋章長按毫秒數
+  trustPromoteDays: [14, 21],  // 信任 0→1 需連續誠實 14 天;1→2 需 21 天
+  spotCheckRate: 0.3,          // 信任等級 1(抽查)被抽中確認的機率
 };
+const TRUST_NAMES = ['每次確認', '隨機抽查', '已畢業 · 自主'];
 
 // ===== 資料遷移:localStorage schema 版本控管 =====
 // 每次啟動檢查版本,舊資料無損升級並先備份到 backup_v1。
@@ -63,6 +66,28 @@ function migrateToV2(s) {
 function todayEventOf(events, id, day) {
   const evs = (events || []).filter(e => e.behaviorId === id && e.date === day);
   return evs.length ? evs[evs.length - 1] : null;
+}
+const dateMinus = (dateStr, n) => ymd(new Date(parseYmd(dateStr).getTime() - n * 86400000));
+// 誠實回報連續(從昨天往回數):approved/誠實回報=+1;auto=中性(不計不斷);rejected/沒回報=斷
+function honestStreakOf(events, id, today) {
+  let streak = 0;
+  for (let d = 1; d <= 60; d++) {
+    const ev = todayEventOf(events, id, dateMinus(today, d));
+    if (!ev || ev.verdict === 'rejected') break;
+    if (ev.verdict === 'auto') continue;
+    streak++;
+  }
+  return streak;
+}
+// 達成率 = 做到 ÷(做到 + 誠實沒做到),排除 auto/rejected;取最近 windowDays 天
+function achieveRate(events, id, today, windowDays) {
+  let done = 0, report = 0;
+  for (let d = 1; d <= windowDays; d++) {
+    const ev = todayEventOf(events, id, dateMinus(today, d));
+    if (!ev || ev.verdict === 'rejected' || ev.verdict === 'auto') continue;
+    report++; if (!ev.honest) done++;
+  }
+  return report ? done / report : 0;
 }
 
 class Component extends DCLogic {
@@ -102,6 +127,7 @@ class Component extends DCLogic {
     coins: 0, streak: 0, xp: 0, protects: 0, honest: 0,
     habit: {}, checked: {},
     taskOn: { k1: true, k2: true, ld1: true, bd1: true }, manualUnlock: {},
+    trustLevel: {}, graduatedAt: {},
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
@@ -118,8 +144,11 @@ class Component extends DCLogic {
       const rest = cur ? st.checkinEvents.filter(e => e !== cur) : st.checkinEvents;   // 清掉誠實回報 / 已退回
       const refund = (cur && cur.honest) ? CONFIG.honestMissXP : 0;                    // 從誠實回報改為做到 → 退回小額 XP
       const xp = b.honestyEligible ? Math.round(b.xp * 1.5) : b.xp;
-      const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: b.coin, xp, honest: false, ts: Date.now(), date: day, verdict: 'pending' };
-      return { checkinEvents: [...rest, ev], xp: st.xp - refund };
+      // 依信任等級決定要不要家長確認:0=每次確認;1=30% 抽查、其餘即時入帳;2=畢業自主即時入帳
+      const level = (st.trustLevel && st.trustLevel[b.id]) || 0;
+      const instant = level >= 2 || (level === 1 && Math.random() >= CONFIG.spotCheckRate);
+      const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: b.coin, xp, honest: false, ts: Date.now(), date: day, verdict: instant ? 'approved' : 'pending' };
+      return instant ? { checkinEvents: [...rest, ev], xp: st.xp - refund + xp, coins: st.coins + b.coin } : { checkinEvents: [...rest, ev], xp: st.xp - refund };
     });
   }
   // 「沒做到」= 誠實回報:立即入帳固定小額 XP(無需家長確認,因為承認失敗沒什麼好造假),連續不斷。
@@ -139,7 +168,10 @@ class Component extends DCLogic {
       const t = st.checkinEvents.find(e => e.id === id && e.verdict === 'pending');
       if (!t) return null;
       const events = st.checkinEvents.map(e => e === t ? { ...e, verdict: approve ? 'approved' : 'rejected' } : e);
-      return approve ? { checkinEvents: events, coins: st.coins + t.coin, xp: st.xp + t.xp } : { checkinEvents: events };
+      if (approve) return { checkinEvents: events, coins: st.coins + t.coin, xp: st.xp + t.xp };
+      // 退回 = 打了卡但實際沒做(不誠實)→ 該行為信任降一級
+      const lvl = (st.trustLevel && st.trustLevel[t.behaviorId]) || 0;
+      return { checkinEvents: events, trustLevel: { ...st.trustLevel, [t.behaviorId]: Math.max(0, lvl - 1) } };
     });
   }
   // 家長一鍵全過
@@ -193,6 +225,17 @@ class Component extends DCLogic {
     else { s.streak = (gap === 1 && success) ? (s.streak || 0) + 1 : 0; }
     s.habit = {}; s.checked = {}; s.decided = {}; s.saved = false; s.fx = null; s.celebrate = false;
     s.checkinEvents = (s.checkinEvents || []).filter(e => dayGap(e.date, today) <= 60); // 事件保留 60 天
+    // 信任升級:每行為一條線,連續誠實達標 + 達成率達地板 → 升一級(2=畢業)
+    s.trustLevel = { ...(s.trustLevel || {}) }; s.graduatedAt = { ...(s.graduatedAt || {}) };
+    LIB.forEach(t => {
+      const lvl = s.trustLevel[t.id] || 0;
+      if (lvl >= 2) return;
+      const need = CONFIG.trustPromoteDays[lvl];
+      if (honestStreakOf(s.checkinEvents, t.id, today) >= need && achieveRate(s.checkinEvents, t.id, today, need) >= CONFIG.promoteMinAchieveRate) {
+        s.trustLevel[t.id] = lvl + 1;
+        if (lvl + 1 === 2) s.graduatedAt[t.id] = today;
+      }
+    });
     s.lastDate = today; s.dayMode = defaultDayMode(today);
     return s;
   }
@@ -271,12 +314,24 @@ class Component extends DCLogic {
       rankProg: atMaxTier ? 'MAX' : (S.xp + ' / ' + nextTier[2]),
       rankPct: rankPctNum + '%',
     };
-    // 信任升級制:段位越高,驗證越鬆 —— 贏得的自主權
-    const trust = reached <= 1
-      ? { level: '成長中 · 每次確認', desc: '完成後由家長確認或拍照打卡，一起把節奏建立起來', icon: 'i-shield', color: '#e0a53a', bg: '#fbf3e2' }
-      : reached <= 3
-      ? { level: '受信任 · 隨機抽查', desc: '大多相信你，家長只偶爾抽查', icon: 'i-check', color: '#2f8a6a', bg: '#e8f6ef' }
-      : { level: '完全自主', desc: '完全信任，家長只看週報 —— 這是你贏來的', icon: 'i-crown', color: '#5b5bd6', bg: '#eef0ff' };
+    // 信任子系統(與段位脫鉤):每個關鍵習慣一條線,連續誠實 → 抽查 → 畢業
+    const trackedHabits = LIB.filter(t => t.type === 'habit' && S.taskOn[t.id] && available(t));
+    const trustLines = trackedHabits.map(h => {
+      const lvl = (S.trustLevel && S.trustLevel[h.id]) || 0, graduated = lvl >= 2;
+      const need = lvl < 2 ? CONFIG.trustPromoteDays[lvl] : 21;
+      const streak = honestStreakOf(S.checkinEvents, h.id, today), rate = Math.round(achieveRate(S.checkinEvents, h.id, today, need) * 100);
+      return { label: h.label, icon: h.icon, levelName: TRUST_NAMES[lvl], graduated,
+        badgeBg: graduated ? '#eef0ff' : (lvl === 1 ? '#e8f6ef' : '#fbf3e2'), badgeColor: graduated ? '#4a4ac2' : (lvl === 1 ? '#2f8a6a' : '#9c6b16'),
+        progLabel: graduated ? '已畢業 · 免驗證 🎓' : ('誠實連續 ' + Math.min(streak, need) + ' / ' + need + ' 天 → ' + TRUST_NAMES[lvl + 1]),
+        progPct: graduated ? '100%' : (Math.min(100, Math.round(streak / need * 100)) + '%'),
+        rateLabel: '近期達成率 ' + rate + '%' };
+    });
+    const gradCount = trustLines.filter(l => l.graduated).length, allGrad = trackedHabits.length > 0 && gradCount === trackedHabits.length;
+    const trust = allGrad
+      ? { level: '完全自主', desc: '所有關鍵習慣都畢業了 —— 這是你贏來的', icon: 'i-crown', color: '#5b5bd6', bg: '#eef0ff' }
+      : gradCount > 0
+      ? { level: gradCount + ' 條習慣已畢業', desc: '免驗證的習慣越來越多,繼續加油', icon: 'i-check', color: '#2f8a6a', bg: '#e8f6ef' }
+      : { level: '建立信任中', desc: '連續誠實回報,逐步換到「免檢查」的自主權', icon: 'i-shield', color: '#e0a53a', bg: '#fbf3e2' };
     const tiers = jrDefs.map((t, i) => { const stt = i < reached ? 'done' : (i === reached ? 'now' : 'lock'), lock = stt === 'lock', isSel = i === sel;
       return { name:t[0], thr: t[2] === 0 ? '起點' : (t[2] + ' XP'), reward:t[3], onSel: () => this.jrSel(i),
         nodeBg: lock ? '#e7eaf2' : 'linear-gradient(150deg,#7b7bf0,#5b5bd6)', nodeColor: lock ? '#aab0c0' : '#fff',
@@ -339,7 +394,7 @@ class Component extends DCLogic {
       dmSchoolBg: mode === 'school' ? GRAD : '#eef0f6', dmSchoolCol: mode === 'school' ? '#fff' : '#8890a3',
       dmOutBg: mode === 'out' ? GRAD : '#eef0f6', dmOutCol: mode === 'out' ? '#fff' : '#8890a3',
       dayHint: mode === 'out' ? '🚗 出門日 · 只顯示到哪都能做的任務，連續不中斷' : (mode === 'school' ? '📚 上學日 · 晚到家也 OK，交機時間順延' : '☀️ 在家日 · 完整任務、寬鬆時間'),
-      trustLevel: trust.level, trustDesc: trust.desc, trustIcon: trust.icon, trustColor: trust.color, trustBg: trust.bg,
+      trustLevel: trust.level, trustDesc: trust.desc, trustIcon: trust.icon, trustColor: trust.color, trustBg: trust.bg, trustLines,
       pauses: S.pauses || 0, pausing: !!S.pausing, notPausing: !S.pausing,
       onPauseStart: () => this.startPause(), onResist: () => this.resistImpulse(), onPauseCancel: () => this.cancelPause(),
       pTab: S.pTab, pIsPending: S.pTab === 'pending', pIsReport: S.pTab === 'report', pIsRewards: S.pTab === 'rewards',
