@@ -8,6 +8,7 @@
 
 <x-dc>
 <helmet>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzViNWJkNicvPjxnIGZpbGw9J25vbmUnIHN0cm9rZT0nI2ZmZicgc3Ryb2tlLXdpZHRoPScyLjUnPjxjaXJjbGUgY3g9JzE2JyBjeT0nMTYnIHI9JzgnLz48Y2lyY2xlIGN4PScxNicgY3k9JzE2JyByPSczLjUnLz48L2c+PGNpcmNsZSBjeD0nMTYnIGN5PScxNicgcj0nMS4zJyBmaWxsPScjZmZmJy8+PC9zdmc+">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <style>/* devanagari */
@@ -3639,7 +3640,7 @@
                 <div style="font-size:13px;color:#808898;line-height:1.55;margin-bottom:14px">{{ h.desc }}</div>
                 <sc-if value="{{ h.idle }}" hint-placeholder-val="{{ true }}">
                   <div style="display:flex;gap:9px">
-                    <button onclick="{{ h.onDone }}" style="flex:1;border:0;border-radius:15px;padding:14px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 15px 'Noto Sans TC';cursor:pointer;box-shadow:0 8px 16px -6px rgba(91,91,214,.55);transition:transform .12s" onmousedown="this.style.transform='scale(.96)'" onmouseup="this.style.transform=''" onmouseleave="this.style.transform=''">我做到了 · +{{ h.reward }}幣</button>
+                    <button onclick="{{ h.onDone }}" style="flex:1;border:0;border-radius:15px;padding:14px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 15px 'Noto Sans TC';cursor:pointer;box-shadow:0 8px 16px -6px rgba(91,91,214,.55);transition:transform .12s" style-active="transform:scale(.96)">我做到了 · +{{ h.reward }}幣</button>
                     <button onclick="{{ h.onMiss }}" style="border:1.5px solid #dfe3ef;background:none;border-radius:15px;padding:14px 18px;color:#808898;font:600 14px 'Noto Sans TC';cursor:pointer">沒做到</button>
                   </div>
                 </sc-if>
@@ -3662,7 +3663,7 @@
             <div style="display:flex;align-items:baseline;justify-content:space-between;margin:22px 4px 12px"><div style="font-weight:900;font-size:15px;color:#1a1f2e">每日小任務</div><div style="font-size:11.5px;color:#8890a3">做完加金幣與 XP</div></div>
             <div style="display:flex;flex-direction:column;gap:9px">
               <sc-for list="{{ dailyTasks }}" as="t" hint-placeholder-count="3">
-                <button onclick="{{ t.onToggle }}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:13px 14px;cursor:pointer;transition:transform .1s" onmousedown="this.style.transform='scale(.98)'" onmouseup="this.style.transform=''" onmouseleave="this.style.transform=''">
+                <button onclick="{{ t.onToggle }}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:13px 14px;cursor:pointer;transition:transform .1s" style-active="transform:scale(.98)">
                   <span style="width:26px;height:26px;border-radius:9px;border:2px solid {{ t.boxBorder }};background:{{ t.boxBg }};display:flex;align-items:center;justify-content:center;color:#fff;flex:none">{{ t.boxIcon }}</span>
                   <span style="width:30px;height:30px;border-radius:9px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:18px;height:18px"><use href="{{ t.icon }}"></use></svg></span>
                   <span style="flex:1;min-width:0"><span style="display:block;font-weight:700;font-size:13.5px;color:#1a1f2e;line-height:1.35">{{ t.label }}</span><span style="display:block;font-size:11px;color:#8890a3;margin-top:1px">{{ t.sub }}</span></span>
@@ -3730,7 +3731,7 @@
                   <div style="width:46px;height:46px;border-radius:14px;background:{{ it.gradient }};display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:11px"><svg style="width:25px;height:25px"><use href="{{ it.icon }}"></use></svg></div>
                   <div style="font-weight:800;font-size:13.5px;color:#1a1f2e;line-height:1.35;min-height:37px">{{ it.name }}</div>
                   <div style="display:flex;align-items:center;gap:4px;margin:6px 0 12px"><span style="color:#e0a53a;display:flex"><svg style="width:15px;height:15px"><use href="#i-coin"></use></svg></span><span style="font:800 15px 'Baloo 2';color:#1a1f2e">{{ it.costLabel }}</span></div>
-                  <button onclick="{{ it.onRedeem }}" style="width:100%;border:0;border-radius:11px;padding:10px;background:{{ it.btnBg }};color:{{ it.btnColor }};font:800 13px 'Noto Sans TC';cursor:pointer;transition:transform .1s" onmousedown="this.style.transform='scale(.96)'" onmouseup="this.style.transform=''" onmouseleave="this.style.transform=''">{{ it.btnText }}</button>
+                  <button onclick="{{ it.onRedeem }}" style="width:100%;border:0;border-radius:11px;padding:10px;background:{{ it.btnBg }};color:{{ it.btnColor }};font:800 13px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.96)">{{ it.btnText }}</button>
                 </div>
               </sc-for>
             </div></div></sc-if>
@@ -3806,7 +3807,7 @@
                       <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14.5px;color:#1a1f2e">{{ it.label }}</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">孩子回報：{{ it.note }}</div></div>
                       <div style="font:700 12px 'Space Grotesk';color:#cf9a2f;white-space:nowrap">+{{ it.reward }}幣</div>
                     </div>
-                    <sc-if value="{{ it.wait }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:9px"><button onclick="{{ it.onOk }}" style="flex:1;border:0;border-radius:12px;padding:11px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer;transition:transform .1s" onmousedown="this.style.transform='scale(.97)'" onmouseup="this.style.transform=''" onmouseleave="this.style.transform=''">通過，入帳</button><button onclick="{{ it.onNo }}" style="border:1.5px solid #e7eaf2;background:none;border-radius:12px;padding:11px 16px;color:#8890a3;font:600 13px 'Noto Sans TC';cursor:pointer">退回</button></div></sc-if>
+                    <sc-if value="{{ it.wait }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:9px"><button onclick="{{ it.onOk }}" style="flex:1;border:0;border-radius:12px;padding:11px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.97)">通過，入帳</button><button onclick="{{ it.onNo }}" style="border:1.5px solid #e7eaf2;background:none;border-radius:12px;padding:11px 16px;color:#8890a3;font:600 13px 'Noto Sans TC';cursor:pointer">退回</button></div></sc-if>
                     <sc-if value="{{ it.ok }}"><div style="display:flex;align-items:center;gap:8px;background:#e7f6f0;border-radius:12px;padding:10px 13px;animation:popIn .35s both"><span style="color:#2f8a6a;display:flex"><svg style="width:18px;height:18px"><use href="#i-check"></use></svg></span><span style="font-weight:700;font-size:13px;color:#2f6b53">已通過 · +{{ it.reward }}幣入帳</span></div></sc-if>
                     <sc-if value="{{ it.no }}"><div style="display:flex;align-items:center;gap:8px;background:#f2f3f7;border-radius:12px;padding:10px 13px;animation:popIn .35s both"><span style="color:#8890a3;display:flex"><svg style="width:15px;height:15px"><use href="#i-close"></use></svg></span><span style="font-weight:700;font-size:13px;color:#6b7180">已退回 · 明天再試</span></div></sc-if>
                   </div>
