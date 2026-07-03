@@ -3617,6 +3617,12 @@
         <!-- TODAY -->
         <sc-if value="{{ pgToday }}" hint-placeholder-val="{{ true }}">
           <div class="scroll">
+            <div style="display:flex;gap:6px;margin-bottom:10px;animation:cardIn .45s both">
+              <button onclick="{{ onDayHome }}" style="flex:1;border:0;border-radius:12px;padding:9px 6px;font:700 12.5px 'Noto Sans TC';cursor:pointer;background:{{ dmHomeBg }};color:{{ dmHomeCol }}" style-active="transform:scale(.97)">☀️ 在家</button>
+              <button onclick="{{ onDaySchool }}" style="flex:1;border:0;border-radius:12px;padding:9px 6px;font:700 12.5px 'Noto Sans TC';cursor:pointer;background:{{ dmSchoolBg }};color:{{ dmSchoolCol }}" style-active="transform:scale(.97)">📚 上學日</button>
+              <button onclick="{{ onDayOut }}" style="flex:1;border:0;border-radius:12px;padding:9px 6px;font:700 12.5px 'Noto Sans TC';cursor:pointer;background:{{ dmOutBg }};color:{{ dmOutCol }}" style-active="transform:scale(.97)">🚗 出門</button>
+            </div>
+            <div style="font-size:11.5px;color:#8890a3;margin:0 2px 14px">{{ dayHint }}</div>
             <div style="background:linear-gradient(160deg,#ffffff,#eef1fb);border:1px solid rgba(20,25,50,.07);border-radius:24px;padding:18px;margin-bottom:16px;box-shadow:0 10px 24px -16px rgba(20,25,50,.5);animation:cardIn .5s both">
               <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px">
                 <div style="width:56px;height:56px;border-radius:18px;background:linear-gradient(150deg,#7b7bf0,#5b5bd6);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 6px 14px -4px rgba(91,91,214,.6);flex:none;animation:floaty 4s ease-in-out infinite"><svg style="width:30px;height:30px"><use href="#i-medal"></use></svg></div>
