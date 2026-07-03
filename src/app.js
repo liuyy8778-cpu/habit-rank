@@ -127,7 +127,7 @@ class Component extends DCLogic {
     coins: 0, streak: 0, xp: 0, protects: 0, honest: 0,
     habit: {}, checked: {},
     taskOn: { k1: true, k2: true, ld1: true, bd1: true }, manualUnlock: {},
-    trustLevel: {}, graduatedAt: {},
+    trustLevel: {}, graduatedAt: {}, gradModal: null,
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
@@ -200,6 +200,8 @@ class Component extends DCLogic {
   decide(id, d) { this.setState(st => ({ decided: { ...st.decided, [id]: d } })); }
   openCeleb() { this.setState({ celebrate: true }); }
   closeCeleb() { this.setState({ celebrate: false }); }
+  openGrad(id) { this.setState({ gradModal: id }); }
+  closeGrad() { this.setState({ gradModal: null }); }
   redeem(it) { this.setState(st => { if (st.redeemed[it.id] || st.coins < it.cost) return null; return { coins: st.coins - it.cost, redeemed: { ...st.redeemed, [it.id]: true }, fx: { name: it.name, icon: it.icon, gradient: it.gradient, spent: it.cost, left: st.coins - it.cost } }; }); }
   closeFx() { this.setState({ fx: null }); }
   // ===== 持久化 + 日期感知 =====
@@ -211,7 +213,7 @@ class Component extends DCLogic {
     this.setState(this.autoApprove(this.rollover(merged, ymd(new Date()))));
   }
   componentDidUpdate() {
-    try { const { celebrate, fx, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
+    try { const { celebrate, fx, gradModal, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
   }
   // 換日結算:評估昨天的連續、重置當日完成狀態、套用新的一天預設模式
   rollover(st, today) {
@@ -233,7 +235,7 @@ class Component extends DCLogic {
       const need = CONFIG.trustPromoteDays[lvl];
       if (honestStreakOf(s.checkinEvents, t.id, today) >= need && achieveRate(s.checkinEvents, t.id, today, need) >= CONFIG.promoteMinAchieveRate) {
         s.trustLevel[t.id] = lvl + 1;
-        if (lvl + 1 === 2) s.graduatedAt[t.id] = today;
+        if (lvl + 1 === 2) { s.graduatedAt[t.id] = today; s.gradModal = t.id; } // 觸發畢業慶祝
       }
     });
     s.lastDate = today; s.dayMode = defaultDayMode(today);
@@ -322,9 +324,9 @@ class Component extends DCLogic {
       const streak = honestStreakOf(S.checkinEvents, h.id, today), rate = Math.round(achieveRate(S.checkinEvents, h.id, today, need) * 100);
       return { label: h.label, icon: h.icon, levelName: TRUST_NAMES[lvl], graduated,
         badgeBg: graduated ? '#eef0ff' : (lvl === 1 ? '#e8f6ef' : '#fbf3e2'), badgeColor: graduated ? '#4a4ac2' : (lvl === 1 ? '#2f8a6a' : '#9c6b16'),
-        progLabel: graduated ? '已畢業 · 免驗證 🎓' : ('誠實連續 ' + Math.min(streak, need) + ' / ' + need + ' 天 → ' + TRUST_NAMES[lvl + 1]),
+        progLabel: graduated ? '已畢業 · 免驗證 · 點看證書 🎓' : ('誠實連續 ' + Math.min(streak, need) + ' / ' + need + ' 天 → ' + TRUST_NAMES[lvl + 1]),
         progPct: graduated ? '100%' : (Math.min(100, Math.round(streak / need * 100)) + '%'),
-        rateLabel: '近期達成率 ' + rate + '%' };
+        rateLabel: '近期達成率 ' + rate + '%', onView: () => graduated && this.openGrad(h.id) };
     });
     const gradCount = trustLines.filter(l => l.graduated).length, allGrad = trackedHabits.length > 0 && gradCount === trackedHabits.length;
     const trust = allGrad
@@ -377,6 +379,11 @@ class Component extends DCLogic {
         tgBg: locked ? '#fbf3e2' : (on ? '#eef0ff' : '#f2f3f7'), tgColor: locked ? '#9c6b16' : (on ? '#4a4ac2' : '#9098ab'), tgDot: locked ? '#e0a53a' : (on ? '#5b5bd6' : '#c2c8d6') }; });
     const colors = ['#5b5bd6','#7b7bf0','#35b28a','#cf9a2f','#e0a53a'];
     const confetti = Array.from({ length: 16 }, (_, i) => ({ left: (5 + i * 5.7) + '%', delay: ((i % 6) * 0.11) + 's', dur: (1.1 + (i % 4) * 0.28) + 's', color: colors[i % colors.length], size: (7 + (i % 3) * 3) + 'px' }));
+    // 畢業證書
+    const gradItem = S.gradModal ? LIB.find(t => t.id === S.gradModal) : null;
+    const gradDays = S.gradModal ? new Set((S.checkinEvents || []).filter(e => e.behaviorId === S.gradModal && e.verdict !== 'rejected').map(e => e.date)).size : 0;
+    const gradCert = { show: !!gradItem, name: gradItem ? gradItem.label : '', icon: gradItem ? gradItem.icon : 'i-crown',
+      date: gradItem ? (S.graduatedAt[S.gradModal] || today) : '', days: gradDays, onClose: () => this.closeGrad() };
     const K = S.kTab, isKid = S.mode === 'kid';
     return {
       isKid, isParent: S.mode === 'parent', toKid: () => this.toMode('kid'), toParent: () => this.toMode('parent'),
@@ -395,6 +402,7 @@ class Component extends DCLogic {
       dmOutBg: mode === 'out' ? GRAD : '#eef0f6', dmOutCol: mode === 'out' ? '#fff' : '#8890a3',
       dayHint: mode === 'out' ? '🚗 出門日 · 只顯示到哪都能做的任務，連續不中斷' : (mode === 'school' ? '📚 上學日 · 晚到家也 OK，交機時間順延' : '☀️ 在家日 · 完整任務、寬鬆時間'),
       trustLevel: trust.level, trustDesc: trust.desc, trustIcon: trust.icon, trustColor: trust.color, trustBg: trust.bg, trustLines,
+      gradShow: gradCert.show, gradName: gradCert.name, gradIcon: gradCert.icon, gradDate: gradCert.date, gradDays: gradCert.days, onCloseGrad: gradCert.onClose,
       pauses: S.pauses || 0, pausing: !!S.pausing, notPausing: !S.pausing,
       onPauseStart: () => this.startPause(), onResist: () => this.resistImpulse(), onPauseCancel: () => this.cancelPause(),
       pTab: S.pTab, pIsPending: S.pTab === 'pending', pIsReport: S.pTab === 'report', pIsRewards: S.pTab === 'rewards',
