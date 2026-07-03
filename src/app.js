@@ -33,6 +33,26 @@ const defaultDayMode = (dateStr) => { const d = parseYmd(dateStr), dow = d.getDa
 // 版本號:@@BUILD@@ 於 build.py 打包時自動代入(日期 · 建置編號),用來判斷手機/網頁是否同版
 const APP_VERSION = 'v1.0 · @@BUILD@@';
 
+// ===== 設定常數(啟發式預設值,非科學定論,依實際狀況調整)=====
+const CONFIG = {
+  honestMissXP: 5,             // 誠實承認沒做到:固定小額 XP(平額,不隨任務浮動)
+  promoteMinAchieveRate: 0.6,  // 信任升級的達成率地板(擺爛畢不了業)
+  autoApproveHours: 48,        // 待確認超時自動放行(中性日)
+  sealHoldMs: 2000,            // 公約蓋章長按毫秒數
+};
+
+// ===== 資料遷移:localStorage schema 版本控管 =====
+// 每次啟動檢查版本,舊資料無損升級並先備份到 backup_v1。
+const SCHEMA_VERSION = 2;
+function migrateToV2(s) {
+  if (!s || s.schemaVersion === SCHEMA_VERSION) return s;
+  try { localStorage.setItem('habitRank_backup_v1', JSON.stringify(s)); } catch (e) {}
+  const m = { ...s };
+  if (!Array.isArray(m.checkinEvents)) m.checkinEvents = [];   // append-only 打卡事件流(未來搬 Supabase)
+  m.schemaVersion = SCHEMA_VERSION;
+  return m;
+}
+
 class Component extends DCLogic {
   constructor(props) {
     super(props);
@@ -65,6 +85,7 @@ class Component extends DCLogic {
   }
   state = {
     mode: 'kid', kTab: 'today', pTab: 'pending',
+    schemaVersion: 2, checkinEvents: [],
     lastDate: null, dayMode: 'home',
     coins: 0, streak: 0, xp: 0, protects: 0, honest: 0,
     habit: {}, checked: {},
@@ -92,6 +113,7 @@ class Component extends DCLogic {
   componentDidMount() {
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem('habitRank') || 'null'); } catch (e) {}
+    if (saved) saved = migrateToV2(saved);
     const merged = saved ? { ...this.state, ...saved } : { ...this.state };
     this.setState(this.rollover(merged, ymd(new Date())));
   }
@@ -114,6 +136,21 @@ class Component extends DCLogic {
   }
   dayWasSuccessful(s) { const ah = LIB.filter(t => t.type === 'habit' && s.taskOn && s.taskOn[t.id]); return ah.length > 0 && ah.every(h => s.habit && s.habit[h.id] === 'done'); }
   setDayMode(m) { this.setState({ dayMode: m }); }
+  // append-only 打卡事件(階段 1 家長確認、未來 Supabase 都讀這條)
+  appendCheckin(behaviorId, honest, verdict) {
+    this.setState(st => ({ checkinEvents: [...(st.checkinEvents || []), { behaviorId, ts: ymd(new Date()), source: 'manual', honest: !!honest, verdict: verdict || 'pending' }] }));
+  }
+  // 匯出整份資料為 JSON 檔(手動備份)
+  exportBackup() {
+    try {
+      const blob = new Blob([JSON.stringify(this.state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'habit-rank-backup-' + ymd(new Date()) + '.json';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {}
+  }
   // 衝動延遲:練習「先暫停」的肌肉
   startPause() { this.setState({ pausing: true }); }
   resistImpulse() { this.setState(st => ({ pausing: false, pauses: (st.pauses || 0) + 1 })); }
@@ -210,6 +247,7 @@ class Component extends DCLogic {
       pgToday: K === 'today', pgTasks: K === 'tasks', pgRank: K === 'rank', pgShop: K === 'shop', pgRecord: K === 'record',
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
       habits, dailyTasks, allToday, jr, shop, rec, appVersion: APP_VERSION,
+      onExport: () => this.exportBackup(),
       onAddHabit: () => this.setState({ mode: 'parent', pTab: 'rewards' }),
       ...todayRank,
       dayMode: mode,

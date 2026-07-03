@@ -3697,7 +3697,10 @@
                 </button>
               </sc-for>
             </div>
-            <div style="text-align:center;font-size:10.5px;color:#c2c8d6;margin:20px 0 6px;letter-spacing:.3px">家庭自律養成 · {{ appVersion }}</div>
+            <div style="text-align:center;margin:20px 0 6px">
+              <div style="font-size:10.5px;color:#c2c8d6;letter-spacing:.3px">家庭自律養成 · {{ appVersion }}</div>
+              <button onclick="{{ onExport }}" style="margin-top:6px;border:0;background:none;color:#aab0c0;font-size:10.5px;text-decoration:underline;cursor:pointer">匯出備份 (JSON)</button>
+            </div>
           </div>
         </sc-if>
         <sc-if value="{{ pgTasks }}"><div class="scroll"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 6px">我的習慣</div>
