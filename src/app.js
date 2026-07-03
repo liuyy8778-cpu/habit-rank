@@ -31,7 +31,7 @@ class Component extends DCLogic {
   }
   state = {
     mode: 'kid', kTab: 'today', pTab: 'pending',
-    coins: 128, streak: 6, xp: 96, protects: 2, honest: 2,
+    coins: 0, streak: 0, xp: 0, protects: 0, honest: 0,
     habit: {}, checked: {},
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
