@@ -3624,7 +3624,7 @@
             </div>
             <div style="font-size:11.5px;color:#8890a3;margin:0 2px 14px">{{ dayHint }}</div>
             <div style="display:flex;align-items:center;gap:11px;background:{{ trustBg }};border-radius:16px;padding:12px 14px;margin-bottom:12px;animation:cardIn .5s both">
-              <div style="width:36px;height:36px;border-radius:11px;background:{{ trustColor }};color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="{{ trustIcon }}"></use></svg></div>
+              <div style="width:36px;height:36px;border-radius:11px;background:{{ trustColor }};color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#{{ trustIcon }}"></use></svg></div>
               <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:13px;color:#1a1f2e">信任等級 · {{ trustLevel }}</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px;line-height:1.4">{{ trustDesc }}</div></div>
             </div>
             <sc-if value="{{ pausing }}">
@@ -3659,7 +3659,7 @@
             <sc-for list="{{ habits }}" as="h" hint-placeholder-count="2">
               <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:22px;padding:17px;margin-bottom:13px;box-shadow:0 8px 20px -18px rgba(0,0,0,.5);animation:cardIn .5s both">
                 <div style="display:flex;align-items:center;gap:7px;margin-bottom:9px">
-                  <span style="display:inline-flex;align-items:center;gap:5px;background:#ebebfb;color:#4a4ac2;font-weight:700;font-size:11px;padding:4px 9px;border-radius:8px"><svg style="width:13px;height:13px"><use href="{{ h.icon }}"></use></svg>關鍵習慣</span>
+                  <span style="display:inline-flex;align-items:center;gap:5px;background:#ebebfb;color:#4a4ac2;font-weight:700;font-size:11px;padding:4px 9px;border-radius:8px"><svg style="width:13px;height:13px"><use href="#{{ h.icon }}"></use></svg>關鍵習慣</span>
                   <span style="display:inline-flex;align-items:center;gap:4px;color:#5b5bd6;font-weight:700;font-size:11.5px;font-family:'Space Grotesk'">綁連續</span>
                 </div>
                 <div style="font-weight:900;font-size:18px;color:#1a1f2e;margin-bottom:4px">{{ h.label }}</div>
@@ -3691,7 +3691,7 @@
               <sc-for list="{{ dailyTasks }}" as="t" hint-placeholder-count="3">
                 <button onclick="{{ t.onToggle }}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:13px 14px;cursor:pointer;transition:transform .1s" style-active="transform:scale(.98)">
                   <span style="width:26px;height:26px;border-radius:9px;border:2px solid {{ t.boxBorder }};background:{{ t.boxBg }};display:flex;align-items:center;justify-content:center;color:#fff;flex:none">{{ t.boxIcon }}</span>
-                  <span style="width:30px;height:30px;border-radius:9px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:18px;height:18px"><use href="{{ t.icon }}"></use></svg></span>
+                  <span style="width:30px;height:30px;border-radius:9px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:18px;height:18px"><use href="#{{ t.icon }}"></use></svg></span>
                   <span style="flex:1;min-width:0"><span style="display:block;font-weight:700;font-size:13.5px;color:#1a1f2e;line-height:1.35">{{ t.label }}</span><span style="display:block;font-size:11px;color:#8890a3;margin-top:1px">{{ t.sub }}</span></span>
                   <span style="font:700 12px 'Space Grotesk';color:#cf9a2f;white-space:nowrap">{{ t.rewardLabel }}</span>
                 </button>
@@ -3704,7 +3704,7 @@
             <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:16px">
               <sc-for list="{{ manage }}" as="m" hint-placeholder-count="3">
                 <div style="display:flex;align-items:center;gap:13px;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:15px;box-shadow:0 6px 16px -16px rgba(0,0,0,.4)">
-                  <div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(150deg,#7b7bf0,#5b5bd6);color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:24px;height:24px"><use href="{{ m.icon }}"></use></svg></div>
+                  <div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(150deg,#7b7bf0,#5b5bd6);color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:24px;height:24px"><use href="#{{ m.icon }}"></use></svg></div>
                   <div style="flex:1;min-width:0">
                     <span style="display:inline-block;background:{{ m.tagBg }};color:{{ m.tagColor }};font-weight:700;font-size:10px;padding:2px 7px;border-radius:6px;margin-bottom:4px">{{ m.tag }}</span>
                     <div style="font-weight:800;font-size:15px;color:#1a1f2e">{{ m.label }}</div>
@@ -3734,7 +3734,7 @@
               <div style="display:flex;flex-direction:column;gap:12px">
                 <sc-for list="{{ jr.tiers }}" as="n" hint-placeholder-count="6">
                   <button onclick="{{ n.onSel }}" style="display:flex;gap:14px;align-items:center;width:100%;background:none;border:0;padding:0;cursor:pointer;position:relative;text-align:left">
-                    <span style="width:48px;height:48px;border-radius:16px;background:{{ n.nodeBg }};color:{{ n.nodeColor }};display:flex;align-items:center;justify-content:center;flex:none;box-shadow:{{ n.ring }};position:relative;z-index:1"><svg style="width:24px;height:24px"><use href="{{ n.icon }}"></use></svg></span>
+                    <span style="width:48px;height:48px;border-radius:16px;background:{{ n.nodeBg }};color:{{ n.nodeColor }};display:flex;align-items:center;justify-content:center;flex:none;box-shadow:{{ n.ring }};position:relative;z-index:1"><svg style="width:24px;height:24px"><use href="#{{ n.icon }}"></use></svg></span>
                     <span style="flex:1;min-width:0;background:{{ n.cardBg }};border:1.5px solid {{ n.cardBorder }};border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:10px">
                       <span style="flex:1;min-width:0"><span style="display:block;font-weight:800;font-size:15px;color:{{ n.nameColor }}">{{ n.name }}</span><span style="display:block;font-size:11px;color:#8890a3;margin-top:1px">{{ n.thr }}</span></span>
                       <span style="display:inline-flex;align-items:center;gap:4px;background:#f4f5f9;border-radius:8px;padding:5px 8px;flex:none"><span style="color:#8890a3;display:flex"><svg style="width:13px;height:13px"><use href="#i-gift"></use></svg></span><span style="font-size:10.5px;font-weight:700;color:#6b7180;white-space:nowrap">{{ n.reward }}</span></span>
@@ -3754,7 +3754,7 @@
               <sc-for list="{{ shop }}" as="it" hint-placeholder-count="4">
                 <div style="position:relative;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:14px;box-shadow:0 6px 16px -16px rgba(0,0,0,.4)">
                   <sc-if value="{{ it.hasTag }}"><span style="position:absolute;top:12px;right:12px;background:#f0389b;color:#fff;font-weight:800;font-size:9.5px;padding:3px 7px;border-radius:6px;letter-spacing:.5px">{{ it.tag }}</span></sc-if>
-                  <div style="width:46px;height:46px;border-radius:14px;background:{{ it.gradient }};display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:11px"><svg style="width:25px;height:25px"><use href="{{ it.icon }}"></use></svg></div>
+                  <div style="width:46px;height:46px;border-radius:14px;background:{{ it.gradient }};display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:11px"><svg style="width:25px;height:25px"><use href="#{{ it.icon }}"></use></svg></div>
                   <div style="font-weight:800;font-size:13.5px;color:#1a1f2e;line-height:1.35;min-height:37px">{{ it.name }}</div>
                   <div style="display:flex;align-items:center;gap:4px;margin:6px 0 12px"><span style="color:#e0a53a;display:flex"><svg style="width:15px;height:15px"><use href="#i-coin"></use></svg></span><span style="font:800 15px 'Baloo 2';color:#1a1f2e">{{ it.costLabel }}</span></div>
                   <button onclick="{{ it.onRedeem }}" style="width:100%;border:0;border-radius:11px;padding:10px;background:{{ it.btnBg }};color:{{ it.btnColor }};font:800 13px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.96)">{{ it.btnText }}</button>
@@ -3788,7 +3788,7 @@
               <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:7px;margin-bottom:9px"><span style="text-align:center;font-size:10px;color:#a6adbe">一</span><span style="text-align:center;font-size:10px;color:#a6adbe">二</span><span style="text-align:center;font-size:10px;color:#a6adbe">三</span><span style="text-align:center;font-size:10px;color:#a6adbe">四</span><span style="text-align:center;font-size:10px;color:#a6adbe">五</span><span style="text-align:center;font-size:10px;color:#a6adbe">六</span><span style="text-align:center;font-size:10px;color:#a6adbe">日</span></div>
               <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:7px">
                 <sc-for list="{{ rec.cells }}" as="d" hint-placeholder-count="28">
-                  <div style="aspect-ratio:1;border-radius:9px;background:{{ d.bg }};color:{{ d.color }};display:flex;align-items:center;justify-content:center;box-shadow:{{ d.ringShadow }}"><sc-if value="{{ d.hasIco }}"><svg style="width:13px;height:13px"><use href="{{ d.ico }}"></use></svg></sc-if></div>
+                  <div style="aspect-ratio:1;border-radius:9px;background:{{ d.bg }};color:{{ d.color }};display:flex;align-items:center;justify-content:center;box-shadow:{{ d.ringShadow }}"><sc-if value="{{ d.hasIco }}"><svg style="width:13px;height:13px"><use href="#{{ d.ico }}"></use></svg></sc-if></div>
                 </sc-for>
               </div>
               <div style="display:flex;gap:14px;margin-top:14px;padding-top:13px;border-top:1px solid rgba(20,25,50,.06)">
@@ -3829,7 +3829,7 @@
                 <sc-for list="{{ pItems }}" as="it" hint-placeholder-count="3">
                   <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:15px">
                     <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:13px">
-                      <div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="{{ it.icon }}"></use></svg></div>
+                      <div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#{{ it.icon }}"></use></svg></div>
                       <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14.5px;color:#1a1f2e">{{ it.label }}</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">孩子回報：{{ it.note }}</div></div>
                       <div style="font:700 12px 'Space Grotesk';color:#cf9a2f;white-space:nowrap">+{{ it.reward }}幣</div>
                     </div>
@@ -3863,7 +3863,7 @@
               <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:22px">
                 <sc-for list="{{ pTasks }}" as="pt" hint-placeholder-count="6">
                   <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:12px 14px">
-                    <div style="width:40px;height:40px;border-radius:12px;background:{{ pt.gradient }};color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:22px;height:22px"><use href="{{ pt.iconHref }}"></use></svg></div>
+                    <div style="width:40px;height:40px;border-radius:12px;background:{{ pt.gradient }};color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:22px;height:22px"><use href="#{{ pt.iconHref }}"></use></svg></div>
                     <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px;color:#1a1f2e">{{ pt.name }}</div><div style="font:700 11px 'Space Grotesk';color:#8890a3;margin-top:2px">{{ pt.cost }}</div></div>
                     <button onclick="{{ pt.onToggle }}" style="display:flex;align-items:center;gap:6px;border:0;border-radius:11px;padding:9px 12px;background:{{ pt.tgBg }};color:{{ pt.tgColor }};font:700 12px 'Noto Sans TC';cursor:pointer"><span style="width:7px;height:7px;border-radius:4px;background:{{ pt.tgDot }}"></span>{{ pt.tgLabel }}</button>
                   </div>
@@ -3874,7 +3874,7 @@
               <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
                 <sc-for list="{{ pRewards }}" as="r" hint-placeholder-count="6">
                   <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:12px 14px">
-                    <div style="width:40px;height:40px;border-radius:12px;background:{{ r.gradient }};color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:22px;height:22px"><use href="{{ r.iconHref }}"></use></svg></div>
+                    <div style="width:40px;height:40px;border-radius:12px;background:{{ r.gradient }};color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:22px;height:22px"><use href="#{{ r.iconHref }}"></use></svg></div>
                     <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px;color:#1a1f2e">{{ r.name }}</div><div style="font:700 11.5px 'Space Grotesk';color:#cf9a2f;margin-top:2px">{{ r.cost }} 幣</div></div>
                     <button onclick="{{ r.onToggle }}" style="display:flex;align-items:center;gap:6px;border:0;border-radius:11px;padding:9px 12px;background:{{ r.tgBg }};color:{{ r.tgColor }};font:700 12px 'Noto Sans TC';cursor:pointer"><span style="width:7px;height:7px;border-radius:4px;background:{{ r.tgDot }}"></span>{{ r.tgLabel }}</button>
                   </div>
@@ -3889,7 +3889,7 @@
       <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(16,18,30,.55);backdrop-filter:blur(3px);animation:scrimIn .3s both;overflow:hidden;z-index:9">
         <sc-for list="{{ confetti }}" as="c" hint-placeholder-count="0"><span style="position:absolute;top:0;left:{{ c.left }};width:{{ c.size }};height:{{ c.size }};background:{{ c.color }};border-radius:2px;animation:confettiFall {{ c.dur }} {{ c.delay }} linear infinite"></span></sc-for>
         <div style="position:relative;width:290px;background:#fff;border-radius:26px;padding:30px 24px;text-align:center;box-shadow:0 30px 60px -20px rgba(0,0,0,.5);animation:celebPop .5s both">
-          <div style="position:relative;width:76px;height:76px;border-radius:24px;background:{{ fxGrad }};display:flex;align-items:center;justify-content:center;color:#fff;margin:0 auto 18px;box-shadow:0 12px 24px -8px rgba(91,91,214,.5)"><svg style="width:42px;height:42px"><use href="{{ fxIcon }}"></use></svg></div>
+          <div style="position:relative;width:76px;height:76px;border-radius:24px;background:{{ fxGrad }};display:flex;align-items:center;justify-content:center;color:#fff;margin:0 auto 18px;box-shadow:0 12px 24px -8px rgba(91,91,214,.5)"><svg style="width:42px;height:42px"><use href="#{{ fxIcon }}"></use></svg></div>
           <div style="font-size:12.5px;font-weight:700;color:#5b5bd6;letter-spacing:2px;margin-bottom:6px">兌換成功</div>
           <div style="font-weight:900;font-size:22px;color:#1a1f2e;margin-bottom:10px">{{ fxName }}</div>
           <div style="font-size:13px;color:#8890a3;line-height:1.6;margin-bottom:22px">已扣 {{ fxSpent }} 幣 · 剩下 {{ fxLeft }} 幣<br>拿這張去找爸媽兌現吧！</div>
