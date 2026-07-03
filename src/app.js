@@ -52,6 +52,11 @@ function migrateToV2(s) {
   m.schemaVersion = SCHEMA_VERSION;
   return m;
 }
+// 取某行為「今天」最新的打卡事件(單一真相來源)
+function todayEventOf(events, id, day) {
+  const evs = (events || []).filter(e => e.behaviorId === id && e.date === day);
+  return evs.length ? evs[evs.length - 1] : null;
+}
 
 class Component extends DCLogic {
   constructor(props) {
@@ -97,9 +102,52 @@ class Component extends DCLogic {
   toMode(m) { this.setState({ mode: m }); }
   kGo(t) { this.setState({ kTab: t }); }
   pGo(t) { this.setState({ pTab: t }); }
-  doHabit(k, v, reward, xp) { this.setState(st => { const cur = st.habit[k] || null, nv = cur === v ? null : v; let coins = st.coins, x = st.xp; if (nv === 'done' && cur !== 'done') { coins += reward; x += xp; } if (cur === 'done' && nv !== 'done') { coins -= reward; x -= xp; } return { habit: { ...st.habit, [k]: nv }, coins, xp: x }; }); }
-  toggleTask(id, coin, xp) { this.setState(st => { const was = !!st.checked[id]; return { checked: { ...st.checked, [id]: !was }, coins: st.coins + (was ? -coin : coin), xp: st.xp + (was ? -xp : xp) }; }); }
-  toggleHonest(id) { this.setState(st => { const was = !!st.checked[id]; return { checked: { ...st.checked, [id]: !was }, honest: st.honest + (was ? -1 : 1) }; }); }
+  // 小孩送出打卡(習慣「做到」/ 任務勾選):建立 pending 事件,不立即入帳(等家長確認)
+  submitCheckin(b) {
+    this.setState(st => {
+      const day = st.lastDate, evs = st.checkinEvents || [];
+      const cur = todayEventOf(evs, b.id, day);
+      if (cur && cur.verdict === 'pending') return { checkinEvents: evs.filter(e => e !== cur), habit: { ...st.habit, [b.id]: null } }; // 再按一次=收回
+      if (cur) return null; // 已確認/自動過:不動
+      const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: b.coin, xp: b.xp, honest: false, ts: Date.now(), date: day, verdict: 'pending' };
+      return { checkinEvents: [...evs, ev], habit: { ...st.habit, [b.id]: null } };
+    });
+  }
+  // 關鍵習慣「沒做到」= 誠實回報(階段 1 先只記本地,誠實 XP 於階段 2 接)
+  markMiss(id) {
+    this.setState(st => {
+      const cur = todayEventOf(st.checkinEvents, id, st.lastDate);
+      const evs = (cur && cur.verdict === 'pending') ? st.checkinEvents.filter(e => e !== cur) : st.checkinEvents;
+      return { checkinEvents: evs, habit: { ...st.habit, [id]: st.habit[id] === 'miss' ? null : 'miss' } };
+    });
+  }
+  // 家長逐項確認:通過才入帳
+  confirmCheckin(id, approve) {
+    this.setState(st => {
+      const t = st.checkinEvents.find(e => e.id === id && e.verdict === 'pending');
+      if (!t) return null;
+      const events = st.checkinEvents.map(e => e === t ? { ...e, verdict: approve ? 'approved' : 'rejected' } : e);
+      return approve ? { checkinEvents: events, coins: st.coins + t.coin, xp: st.xp + t.xp } : { checkinEvents: events };
+    });
+  }
+  // 家長一鍵全過
+  approveAll() {
+    this.setState(st => {
+      let coins = st.coins, xp = st.xp, any = false;
+      const events = st.checkinEvents.map(e => { if (e.verdict !== 'pending') return e; coins += e.coin; xp += e.xp; any = true; return { ...e, verdict: 'approved' }; });
+      return any ? { checkinEvents: events, coins, xp } : null;
+    });
+  }
+  // 超過 autoApproveHours 未確認:自動放行(中性日),不懲罰小孩
+  autoApprove(s) {
+    const now = Date.now(), limit = CONFIG.autoApproveHours * 3600000;
+    let coins = s.coins, xp = s.xp, changed = false;
+    const events = (s.checkinEvents || []).map(e => {
+      if (e.verdict === 'pending' && (now - e.ts) > limit) { coins += e.coin; xp += e.xp; changed = true; return { ...e, verdict: 'auto' }; }
+      return e;
+    });
+    return changed ? { ...s, checkinEvents: events, coins, xp } : s;
+  }
   toggleTaskOn(id) { this.setState(st => ({ taskOn: { ...st.taskOn, [id]: !st.taskOn[id] } })); }
   toggleList(id) { this.setState(st => ({ listed: { ...st.listed, [id]: !st.listed[id] } })); }
   jrSel(i) { this.setState({ jrSel: i }); }
@@ -115,7 +163,7 @@ class Component extends DCLogic {
     try { saved = JSON.parse(localStorage.getItem('habitRank') || 'null'); } catch (e) {}
     if (saved) saved = migrateToV2(saved);
     const merged = saved ? { ...this.state, ...saved } : { ...this.state };
-    this.setState(this.rollover(merged, ymd(new Date())));
+    this.setState(this.autoApprove(this.rollover(merged, ymd(new Date()))));
   }
   componentDidUpdate() {
     try { const { celebrate, fx, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
@@ -131,10 +179,16 @@ class Component extends DCLogic {
     if (wasOut) { if (gap > 1) s.streak = 0; }          // 出門日保護連續(隔太多天仍中斷)
     else { s.streak = (gap === 1 && success) ? (s.streak || 0) + 1 : 0; }
     s.habit = {}; s.checked = {}; s.decided = {}; s.saved = false; s.fx = null; s.celebrate = false;
+    s.checkinEvents = (s.checkinEvents || []).filter(e => dayGap(e.date, today) <= 60); // 事件保留 60 天
     s.lastDate = today; s.dayMode = defaultDayMode(today);
     return s;
   }
-  dayWasSuccessful(s) { const ah = LIB.filter(t => t.type === 'habit' && s.taskOn && s.taskOn[t.id]); return ah.length > 0 && ah.every(h => s.habit && s.habit[h.id] === 'done'); }
+  // 昨天算「成功」= 所有啟用的關鍵習慣當天都有打卡(未被退回)
+  dayWasSuccessful(s) {
+    const ah = LIB.filter(t => t.type === 'habit' && s.taskOn && s.taskOn[t.id]);
+    if (!ah.length) return false;
+    return ah.every(h => (s.checkinEvents || []).some(e => e.behaviorId === h.id && e.date === s.lastDate && e.verdict !== 'rejected'));
+  }
   setDayMode(m) { this.setState({ dayMode: m }); }
   // append-only 打卡事件(階段 1 家長確認、未來 Supabase 都讀這條)
   appendCheckin(behaviorId, honest, verdict) {
@@ -163,23 +217,30 @@ class Component extends DCLogic {
     const mode = S.dayMode || 'home';
     const activeLib = LIB.filter(t => S.taskOn[t.id]);
     const dayPool = mode === 'out' ? activeLib.filter(t => t.where === 'anywhere') : activeLib;
+    const today = S.lastDate || ymd(new Date());
     const check = React.createElement('svg', { style: { width: 15, height: 15 } }, React.createElement('use', { href: '#i-check' }));
+    const clock = React.createElement('svg', { style: { width: 15, height: 15 } }, React.createElement('use', { href: '#i-hour' }));
+    // 每個行為今天的狀態:idle / pending(待確認)/ approved / auto / rejected / miss
+    const statusOf = (id) => { const ev = todayEventOf(S.checkinEvents, id, today); return ev ? ev.verdict : (S.habit[id] === 'miss' ? 'miss' : 'idle'); };
     const habits = dayPool.filter(t => t.type === 'habit').map(h => {
       const tt = (mode !== 'out' && h.times) ? h.times[mode === 'school' ? 'school' : 'home'] : '';
       const desc = h.desc + (tt ? '　⏰ 今天目標 ' + tt + ' 前' : '');
+      const s = statusOf(h.id), submitted = s === 'pending' || s === 'approved' || s === 'auto', credited = s === 'approved' || s === 'auto';
       return { key: h.id, label: h.label, desc, reward: h.coin, xp: h.xp, icon: h.icon,
-        idle: !S.habit[h.id], done: S.habit[h.id] === 'done', miss: S.habit[h.id] === 'miss',
-        onDone: () => this.doHabit(h.id, 'done', h.coin, h.xp), onMiss: () => this.doHabit(h.id, 'miss', h.coin, h.xp) }; });
-    const dailyTasks = dayPool.filter(t => t.type === 'task').map(t => { const on = !!S.checked[t.id];
-      const rewardLabel = t.honest ? '誠實值 +1' : ('+' + t.xp + 'XP · ' + t.coin + '幣');
-      return { id: t.id, icon: t.icon, label: t.label, sub: t.sub, xp: t.xp, coin: t.coin, rewardLabel,
-        boxBg: on ? ACC : 'transparent', boxBorder: on ? ACC : '#cdd2df', boxIcon: on ? check : '',
-        onToggle: () => t.honest ? this.toggleHonest(t.id) : this.toggleTask(t.id, t.coin, t.xp) }; });
-    // 任務分頁:把今天的關鍵習慣 + 每日任務合成一份可勾選的清單(每列可點)
-    const habitRows = dayPool.filter(t => t.type === 'habit').map(h => { const done = S.habit[h.id] === 'done';
-      return { id: h.id, icon: h.icon, label: h.label, sub: '關鍵習慣', rewardLabel: '+' + h.xp + 'XP · ' + h.coin + '幣',
-        boxBg: done ? ACC : 'transparent', boxBorder: done ? ACC : '#cdd2df', boxIcon: done ? check : '',
-        onToggle: () => this.doHabit(h.id, 'done', h.coin, h.xp) }; });
+        idle: s === 'idle' || s === 'rejected', submitted, miss: s === 'miss', canUndo: s === 'pending',
+        subLabel: credited ? '已確認入帳 ✓' : '已送去給爸媽確認',
+        subSub: credited ? ('+' + h.coin + '幣 已入帳') : ('+' + h.coin + '幣 待入帳'),
+        onDone: () => this.submitCheckin({ id: h.id, label: h.label, icon: h.icon, kind: 'habit', coin: h.coin, xp: h.xp }),
+        onMiss: () => this.markMiss(h.id) }; });
+    const rowFor = (o, sub, coin, xp) => { const s = statusOf(o.id), pending = s === 'pending', done = s === 'approved' || s === 'auto';
+      return { id: o.id, icon: o.icon, label: o.label, sub,
+        rewardLabel: pending ? '待確認' : (done ? '已入帳 ✓' : (o.honest ? '誠實回報' : ('+' + xp + 'XP · ' + coin + '幣'))),
+        boxBg: done ? ACC : (pending ? '#f6efe0' : 'transparent'), boxBorder: done ? ACC : (pending ? '#e0a53a' : '#cdd2df'),
+        boxIcon: done ? check : (pending ? clock : ''),
+        onToggle: () => this.submitCheckin({ id: o.id, label: o.label, icon: o.icon, kind: o.type, coin, xp }) }; };
+    const dailyTasks = dayPool.filter(t => t.type === 'task').map(t => rowFor(t, t.sub, t.honest ? 0 : t.coin, t.honest ? 0 : t.xp));
+    // 任務分頁:把今天的關鍵習慣 + 每日任務合成一份可點清單
+    const habitRows = dayPool.filter(t => t.type === 'habit').map(h => rowFor(h, '關鍵習慣', h.coin, h.xp));
     const allToday = [...habitRows, ...dailyTasks];
     const jrDefs = [['見習','完全託管，先把節奏建立起來',0,'解鎖每日任務'],['銅段','解鎖 30 分自選時段',300,'自選時段 ×1'],['銀段','週末彈性 +1 小時',800,'週末彈性 +1hr'],['金段','自己設定交機時間',1800,'自訂交機時間'],['鑽石','完全自主，家長只看週報',3500,'完全自主'],['傳說','自律大師 · 名人堂',6000,'名人堂徽章']];
     const reached = jrDefs.reduce((m, t, i) => S.xp >= t[2] ? i : m, 0), sel = S.jrSel;
@@ -224,13 +285,14 @@ class Component extends DCLogic {
     const recMap = { d:{ bg:ACC, color:'#fff', ico:'i-check' }, h:{ bg:'#f6efe0', color:'#cf9a2f', ico:'i-heart' }, m:{ bg:'#eef0f6', color:'#aab0c0', ico:'i-close' }, now:{ bg:'#fff', color:'#5b5bd6', ico:'', ring:true }, future:{ bg:'#e9ecf3', color:'#c2c8d6', ico:'' } };
     const recCells = recPat.map(k => { const m = recMap[k]; return { bg: m.bg, color: m.color, ico: m.ico || 'i-check', hasIco: !!m.ico, ringShadow: m.ring ? '0 0 0 2px #5b5bd6 inset' : 'none' }; });
     const rec = { cells: recCells, doneN: recPat.filter(x => x === 'd').length, honestN: recPat.filter(x => x === 'h').length };
-    const pendBase = [
-      { id:'p1', label:'睡前準時交機', reward:30, note:'21:32 放回充電座', icon:'i-moon' },
-      { id:'p2', label:'準時結束今天的螢幕', reward:20, note:'到點自己收手', icon:'i-hour' },
-      { id:'p3', label:'離線做一件事 30 分', reward:12, note:'讀了 30 分鐘', icon:'i-bolt' },
-    ];
-    const pItems = pendBase.map(it => { const status = S.decided[it.id] || 'wait'; return { ...it, wait: status === 'wait', ok: status === 'ok', no: status === 'no', onOk: () => this.decide(it.id, 'ok'), onNo: () => this.decide(it.id, 'no') }; });
-    const pWait = pItems.filter(i => i.wait).length;
+    // 家長待確認:真實的 pending 打卡事件(小孩送出的)
+    const nowMs = Date.now();
+    const pendingEvents = (S.checkinEvents || []).filter(e => e.verdict === 'pending');
+    const pItems = pendingEvents.map(e => ({ id: e.id, label: e.label, reward: e.coin, icon: e.icon,
+      note: (e.kind === 'habit' ? '關鍵習慣' : '每日任務') + (e.honest ? ' · 誠實回報' : ''), wait: true, ok: false, no: false,
+      onOk: () => this.confirmCheckin(e.id, true), onNo: () => this.confirmCheckin(e.id, false) }));
+    const pWait = pItems.length;
+    const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
     const week = [['一',100],['二',100],['三',80],['四',100],['五',100],['六',55],['日',100]].map(w => ({ label: w[0], h: Math.round(w[1] * 0.72) + 'px', barBg: w[1] >= 80 ? 'linear-gradient(180deg,#7b7bf0,#5b5bd6)' : '#dfe3ee' }));
     const pRewards = itemsAll.map(it => { const on = !!S.listed[it.id]; return { id: it.id, name: it.name, cost: it.cost + '', iconHref: it.icon, gradient: grads[it.g], onToggle: () => this.toggleList(it.id), tgLabel: on ? '上架中' : '已下架', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
     // 家長任務管理:任務庫全部列出,開關決定哪些對孩子生效
@@ -264,6 +326,8 @@ class Component extends DCLogic {
       pcP: S.pTab === 'pending' ? ACC : '#8890a3', pcR: S.pTab === 'report' ? ACC : '#8890a3', pcG: S.pTab === 'rewards' ? ACC : '#8890a3',
       pbP: S.pTab === 'pending' ? '#eef0ff' : 'transparent', pbR: S.pTab === 'report' ? '#eef0ff' : 'transparent', pbG: S.pTab === 'rewards' ? '#eef0ff' : 'transparent',
       pItems, pWaitLabel: pWait > 0 ? (pWait + ' 筆待確認') : '今天都確認完了', week, pRewards, pTasks,
+      pHasPending: pWait > 0, pAllDone: pWait === 0, pWait, onApproveAll: () => this.approveAll(),
+      nudgeShow: nudgeCount > 0, nudgeLabel: '有 ' + nudgeCount + ' 項打卡超過一天還沒看，孩子在等你 👀',
       onUseProtect: () => this.useProtect(), saved: S.saved, protectIdle: !S.saved,
       openCeleb: () => this.openCeleb(), closeCeleb: () => this.closeCeleb(), celebrate: S.celebrate,
       fxShow: !!S.fx, fxName: S.fx ? S.fx.name : '', fxIcon: S.fx ? S.fx.icon : 'i-gift', fxGrad: S.fx ? S.fx.gradient : GRAD, fxSpent: S.fx ? S.fx.spent : 0, fxLeft: S.fx ? S.fx.left : 0, fxClose: () => this.closeFx(),
