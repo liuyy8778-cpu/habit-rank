@@ -3594,6 +3594,7 @@
   @keyframes confettiFall{0%{transform:translateY(-30px) rotate(0);opacity:1}100%{transform:translateY(440px) rotate(340deg);opacity:.15}}
   @keyframes celebPop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
   @keyframes scrimIn{from{opacity:0}to{opacity:1}}
+  @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
   @keyframes ring{0%{transform:scale(.7);opacity:.9}100%{transform:scale(1.7);opacity:0}}
 </style>
 </helmet>
@@ -3865,11 +3866,11 @@
                 <div style="display:flex;gap:8px"><sc-for list="{{ week }}" as="w"><span style="flex:1;text-align:center;font-size:10.5px;color:#8890a3">{{ w.label }}</span></sc-for></div>
               </div>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-                <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#1a1f2e">6/7</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">準時交機</div></div>
-                <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#35b28a">3</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">誠實回報</div></div>
-                <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#5b5bd6">6</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">最長連續</div></div>
+                <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#1a1f2e">{{ reportK1 }}</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">準時交機</div></div>
+                <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#35b28a">{{ reportHonest }}</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">誠實回報</div></div>
+                <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#5b5bd6">{{ reportStreak }}</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">目前連續</div></div>
               </div>
-              <div style="background:#eef0ff;border-radius:16px;padding:14px 16px;margin-top:14px;font-size:12.5px;color:#4a4ac2;line-height:1.6">這週有 <b>3 次誠實回報</b>——孩子選擇說實話，比「看起來全勤」更值得肯定。</div>
+              <div style="background:#eef0ff;border-radius:16px;padding:14px 16px;margin-top:14px;font-size:12.5px;color:#4a4ac2;line-height:1.65">💬 {{ reportLine }}</div>
             </div>
           </sc-if>
           <sc-if value="{{ pIsRewards }}">
@@ -3987,6 +3988,20 @@
           <div style="font-weight:900;font-size:28px;color:#1a1f2e;margin-bottom:10px">銅段</div>
           <div style="font-size:13px;color:#8890a3;line-height:1.6;margin-bottom:22px">解鎖「30 分自選時段」——<br>什麼時候用，你自己安排。</div>
           <button onclick="{{ closeCeleb }}" style="width:100%;border:0;border-radius:14px;padding:14px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 15px 'Noto Sans TC';cursor:pointer">太好了，收下</button>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ missAskShow }}">
+      <div style="position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(16,18,30,.45);backdrop-filter:blur(2px);animation:scrimIn .25s both;z-index:10">
+        <div style="width:100%;background:#fff;border-radius:24px 24px 0 0;padding:22px 20px 26px;box-shadow:0 -12px 40px -12px rgba(0,0,0,.35);animation:sheetUp .3s both">
+          <div style="font-weight:900;font-size:16px;color:#1a1f2e;margin-bottom:4px">謝謝你誠實回報 🌱</div>
+          <div style="font-size:12.5px;color:#8890a3;line-height:1.55;margin-bottom:16px">「{{ missAskLabel }}」今天沒做到——<b style="color:#5b5bd6">是什麼擋住了?</b>知道原因，下次比較好安排。(可跳過，怎麼選都不影響獎勵)</div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <button onclick="{{ onMissEnv }}" style="display:flex;align-items:center;gap:11px;border:1.5px solid #e7eaf2;background:#fbfbfe;border-radius:15px;padding:14px 16px;cursor:pointer;text-align:left"><span style="font-size:20px">🌪️</span><span><span style="display:block;font-weight:800;font-size:14px;color:#1a1f2e">環境干擾</span><span style="font-size:11.5px;color:#8890a3">太吵、被打斷、東西不在手邊</span></span></button>
+            <button onclick="{{ onMissMood }}" style="display:flex;align-items:center;gap:11px;border:1.5px solid #e7eaf2;background:#fbfbfe;border-radius:15px;padding:14px 16px;cursor:pointer;text-align:left"><span style="font-size:20px">🌧️</span><span><span style="display:block;font-weight:800;font-size:14px;color:#1a1f2e">心情不好</span><span style="font-size:11.5px;color:#8890a3">累了、煩、就是不想動</span></span></button>
+            <button onclick="{{ onMissForgot }}" style="display:flex;align-items:center;gap:11px;border:1.5px solid #e7eaf2;background:#fbfbfe;border-radius:15px;padding:14px 16px;cursor:pointer;text-align:left"><span style="font-size:20px">💭</span><span><span style="display:block;font-weight:800;font-size:14px;color:#1a1f2e">忘記了</span><span style="font-size:11.5px;color:#8890a3">沒想起來、沒有提醒</span></span></button>
+          </div>
+          <button onclick="{{ onMissSkip }}" style="width:100%;margin-top:12px;border:0;background:none;color:#a6adbe;font:600 12.5px 'Noto Sans TC';cursor:pointer;padding:6px">先跳過</button>
         </div>
       </div>
     </sc-if>

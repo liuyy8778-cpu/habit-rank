@@ -90,6 +90,55 @@ function achieveRate(events, id, today, windowDays) {
   return report ? done / report : 0;
 }
 
+// ===== B6:家長週報 =====
+// 規則式(不需 LLM)從 checkinEvents 近 7 天算出數據 + 一句「對話起點」。
+// 每個小孩各自一份、不並排;呈現的是溝通句而非儀表板。
+const WEEKDAY_CN = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+function weeklyReport(events, today, taskOn) {
+  const evs = events || [];
+  const days = []; for (let d = 6; d >= 0; d--) days.push(dateMinus(today, d)); // 近 7 天(含今天)
+  const activeHabits = LIB.filter(t => t.type === 'habit' && taskOn && taskOn[t.id]);
+  const doneOn = (id, day) => { const ev = todayEventOf(evs, id, day); return !!(ev && !ev.honest && ev.verdict !== 'rejected'); };
+  const week = days.map(day => {
+    const tot = activeHabits.length || 1;
+    let done = 0; activeHabits.forEach(h => { if (doneOn(h.id, day)) done++; });
+    const pct = Math.round(done / tot * 100);
+    return { label: WEEKDAY_CN[parseYmd(day).getDay()].slice(1), h: Math.round(Math.max(pct, 4) * 0.72) + 'px',
+      barBg: pct >= 80 ? 'linear-gradient(180deg,#7b7bf0,#5b5bd6)' : (pct > 0 ? '#c9cdf0' : '#dfe3ee') };
+  });
+  const k1Days = days.filter(day => doneOn('k1', day)).length;         // 準時交機天數
+  const misses = evs.filter(e => e.honest && days.indexOf(e.date) >= 0); // 本週誠實回報「沒做到」
+  const honestN = misses.length;
+  const prevDays = []; for (let d = 13; d >= 7; d--) prevDays.push(dateMinus(today, d));
+  const prevMiss = evs.filter(e => e.honest && prevDays.indexOf(e.date) >= 0).length;
+  // 規則式一句話:同一 weekday 重複 > 同一 missReason 佔多數 > 連續改善 > 誠實肯定
+  let line = '這週還在累積紀錄——多打幾天卡,週報就會給出更具體的觀察。';
+  if (honestN === 0 && days.some(day => activeHabits.some(h => doneOn(h.id, day)))) {
+    line = '這週沒有「沒做到」的回報——孩子把答應的事穩定做到了,值得肯定。';
+  } else if (honestN > 0) {
+    const byDow = {}; misses.forEach(m => { const w = parseYmd(m.date).getDay(); byDow[w] = (byDow[w] || 0) + 1; });
+    const topDow = Object.keys(byDow).sort((a, b) => byDow[b] - byDow[a])[0];
+    const reasoned = misses.filter(m => m.missReason);
+    const byReason = {}; reasoned.forEach(m => { byReason[m.missReason] = (byReason[m.missReason] || 0) + 1; });
+    const topReason = Object.keys(byReason).sort((a, b) => byReason[b] - byReason[a])[0];
+    const reasonLine = {
+      environment: '這週多數「沒做到」是環境干擾——也許不是不想做,是環境需要調一下(固定的時間、地點會有幫助)。',
+      mood: '這週多數「沒做到」跟心情有關——比起追進度,也許先聊聊最近是不是累了、煩了。',
+      forgot: '這週多數「沒做到」是忘記了——這是「提示」問題,設個固定鬧鐘或看得到的提醒,可能就解決了。',
+    };
+    if (topDow != null && byDow[topDow] >= 2) {
+      line = '這週的「沒做到」多落在' + WEEKDAY_CN[topDow] + '——要不要聊聊' + WEEKDAY_CN[topDow] + '的安排、或交機時間是不是需要調整?';
+    } else if (topReason && byReason[topReason] >= 2 && byReason[topReason] >= Math.ceil(reasoned.length / 2)) {
+      line = reasonLine[topReason];
+    } else if (prevMiss > honestN) {
+      line = '這週的「沒做到」比上週少——正在往好的方向走,值得鼓勵。';
+    } else {
+      line = '這週有 ' + honestN + ' 次誠實回報——孩子選擇說實話,比「看起來全勤」更值得肯定。';
+    }
+  }
+  return { week, k1Label: k1Days + '/7', honestN, line };
+}
+
 class Component extends DCLogic {
   constructor(props) {
     super(props);
@@ -134,7 +183,7 @@ class Component extends DCLogic {
       schedules: { weekday: '21:40', weekend: '22:30' },
       signatures: { child: { name: '', at: '' }, parent: { name: '', at: '' } },
     },
-    newTerm: '', sealing: null,
+    newTerm: '', sealing: null, missAsk: null,
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
@@ -162,13 +211,24 @@ class Component extends DCLogic {
   markMiss(b) {
     this.setState(st => {
       const day = st.lastDate, cur = todayEventOf(st.checkinEvents, b.id, day);
-      if (cur && cur.honest) return { checkinEvents: st.checkinEvents.filter(e => e !== cur), xp: st.xp - CONFIG.honestMissXP }; // 再按=收回並退回 XP
+      if (cur && cur.honest) return { checkinEvents: st.checkinEvents.filter(e => e !== cur), xp: st.xp - CONFIG.honestMissXP, missAsk: null }; // 再按=收回並退回 XP
       if (cur && !cur.honest && (cur.verdict === 'approved' || cur.verdict === 'auto')) return null; // 已入帳鎖定
       const rest = cur ? st.checkinEvents.filter(e => e !== cur) : st.checkinEvents;
-      const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: 0, xp: CONFIG.honestMissXP, honest: true, ts: Date.now(), date: day, verdict: 'approved' };
-      return { checkinEvents: [...rest, ev], xp: st.xp + CONFIG.honestMissXP };
+      const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: 0, xp: CONFIG.honestMissXP, honest: true, missReason: null, ts: Date.now(), date: day, verdict: 'approved' };
+      // B5:回報後多問一題「為什麼沒做到」(B=MAT 診斷),三選一可跳過,不影響金幣/XP
+      return { checkinEvents: [...rest, ev], xp: st.xp + CONFIG.honestMissXP, missAsk: { id: b.id, label: b.label } };
     });
   }
+  // B5:記錄 miss 原因(environment/mood/forgot)。純診斷,不影響任何獎勵。
+  setMissReason(reason) {
+    this.setState(st => {
+      if (!st.missAsk) return { missAsk: null };
+      const cur = todayEventOf(st.checkinEvents, st.missAsk.id, st.lastDate);
+      if (!cur) return { missAsk: null };
+      return { checkinEvents: st.checkinEvents.map(e => e === cur ? { ...e, missReason: reason } : e), missAsk: null };
+    });
+  }
+  skipMissReason() { this.setState({ missAsk: null }); }
   // 家長逐項確認:通過才入帳
   confirmCheckin(id, approve) {
     this.setState(st => {
@@ -230,7 +290,7 @@ class Component extends DCLogic {
     this.setState(this.autoApprove(this.rollover(merged, ymd(new Date()))));
   }
   componentDidUpdate() {
-    try { const { celebrate, fx, gradModal, sealing, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
+    try { const { celebrate, fx, gradModal, sealing, missAsk, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
   }
   // 換日結算:評估昨天的連續、重置當日完成狀態、套用新的一天預設模式
   rollover(st, today) {
@@ -395,7 +455,7 @@ class Component extends DCLogic {
       onOk: () => this.confirmCheckin(e.id, true), onNo: () => this.confirmCheckin(e.id, false) }));
     const pWait = pItems.length;
     const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
-    const week = [['一',100],['二',100],['三',80],['四',100],['五',100],['六',55],['日',100]].map(w => ({ label: w[0], h: Math.round(w[1] * 0.72) + 'px', barBg: w[1] >= 80 ? 'linear-gradient(180deg,#7b7bf0,#5b5bd6)' : '#dfe3ee' }));
+    const wr = weeklyReport(S.checkinEvents, today, S.taskOn); // B6:真實週報 + 一句話
     const pRewards = itemsAll.map(it => { const on = !!S.listed[it.id]; return { id: it.id, name: it.name, cost: it.cost + '', iconHref: it.icon, gradient: grads[it.g], onToggle: () => this.toggleList(it.id), tgLabel: on ? '上架中' : '已下架', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
     // 家長任務管理:任務庫全部列出。鎖定的顯示解鎖段位,家長可提前解鎖(家長最大)
     const pTasks = LIB.map(t => { const on = !!S.taskOn[t.id], locked = !available(t);
@@ -432,6 +492,8 @@ class Component extends DCLogic {
       dayHint: mode === 'out' ? '🚗 出門日 · 只顯示到哪都能做的任務，連續不中斷' : (mode === 'school' ? '📚 上學日 · 晚到家也 OK，交機時間順延' : '☀️ 在家日 · 完整任務、寬鬆時間'),
       trustLevel: trust.level, trustDesc: trust.desc, trustIcon: trust.icon, trustColor: trust.color, trustBg: trust.bg, trustLines,
       gradShow: gradCert.show, gradName: gradCert.name, gradIcon: gradCert.icon, gradDate: gradCert.date, gradDays: gradCert.days, onCloseGrad: gradCert.onClose,
+      missAskShow: !!S.missAsk, missAskLabel: S.missAsk ? S.missAsk.label : '',
+      onMissEnv: () => this.setMissReason('environment'), onMissMood: () => this.setMissReason('mood'), onMissForgot: () => this.setMissReason('forgot'), onMissSkip: () => this.skipMissReason(),
       pauses: S.pauses || 0, pausing: !!S.pausing, notPausing: !S.pausing,
       onPauseStart: () => this.startPause(), onResist: () => this.resistImpulse(), onPauseCancel: () => this.cancelPause(),
       pTab: S.pTab, pIsPending: S.pTab === 'pending', pIsReport: S.pTab === 'report', pIsRewards: S.pTab === 'rewards', pIsCovenant: S.pTab === 'covenant',
@@ -449,7 +511,7 @@ class Component extends DCLogic {
       sealingChild: S.sealing === 'child', sealingParent: S.sealing === 'parent',
       sigChildUnsealed: !S.covenant.signatures.child.at, sigParentUnsealed: !S.covenant.signatures.parent.at,
       notSealingChild: S.sealing !== 'child', notSealingParent: S.sealing !== 'parent', onResign: () => this.resign(),
-      pItems, pWaitLabel: pWait > 0 ? (pWait + ' 筆待確認') : '今天都確認完了', week, pRewards, pTasks,
+      pItems, pWaitLabel: pWait > 0 ? (pWait + ' 筆待確認') : '今天都確認完了', week: wr.week, reportK1: wr.k1Label, reportHonest: wr.honestN + '', reportStreak: (S.streak || 0) + '', reportLine: wr.line, pRewards, pTasks,
       pHasPending: pWait > 0, pAllDone: pWait === 0, pWait, onApproveAll: () => this.approveAll(),
       nudgeShow: nudgeCount > 0, nudgeLabel: '有 ' + nudgeCount + ' 項打卡超過一天還沒看，孩子在等你 👀',
       onUseProtect: () => this.useProtect(), saved: S.saved, protectIdle: !S.saved,
