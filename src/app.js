@@ -128,6 +128,13 @@ class Component extends DCLogic {
     habit: {}, checked: {},
     taskOn: { k1: true, k2: true, ld1: true, bd1: true }, manualUnlock: {},
     trustLevel: {}, graduatedAt: {}, gradModal: null,
+    covenant: {
+      version: 1,
+      terms: ['到約定時間，自己把手機放回充電區', '有做到就打卡；沒做到也誠實回報', '手機留在充電區過夜，不帶回房間'],
+      schedules: { weekday: '21:40', weekend: '22:30' },
+      signatures: { child: { name: '', at: '' }, parent: { name: '', at: '' } },
+    },
+    newTerm: '', sealing: null,
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
@@ -202,6 +209,16 @@ class Component extends DCLogic {
   closeCeleb() { this.setState({ celebrate: false }); }
   openGrad(id) { this.setState({ gradModal: id }); }
   closeGrad() { this.setState({ gradModal: null }); }
+  // ===== 家庭公約 =====
+  setNewTerm(e) { this.setState({ newTerm: e.target.value }); }
+  addTerm() { this.setState(st => { const t = (st.newTerm || '').trim(); if (!t) return null; return { newTerm: '', covenant: { ...st.covenant, terms: [...st.covenant.terms, t] } }; }); }
+  delTerm(i) { this.setState(st => ({ covenant: { ...st.covenant, terms: st.covenant.terms.filter((_, x) => x !== i) } })); }
+  setSigName(role, e) { const v = e.target.value; this.setState(st => ({ covenant: { ...st.covenant, signatures: { ...st.covenant.signatures, [role]: { ...st.covenant.signatures[role], name: v } } } })); }
+  setSched(dayType, e) { const v = e.target.value; this.setState(st => ({ covenant: { ...st.covenant, schedules: { ...st.covenant.schedules, [dayType]: v } } })); }
+  sealStart(role) { try { clearTimeout(this._sealT); } catch (e) {} this._sealT = setTimeout(() => this.doSeal(role), CONFIG.sealHoldMs); this.setState({ sealing: role }); }
+  sealEnd() { try { clearTimeout(this._sealT); } catch (e) {} this.setState({ sealing: null }); }
+  doSeal(role) { this.setState(st => { const n = (st.covenant.signatures[role].name || '').trim(); if (!n) return { sealing: null }; try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) {} return { sealing: null, covenant: { ...st.covenant, signatures: { ...st.covenant.signatures, [role]: { name: n, at: ymd(new Date()) } } } }; }); }
+  resign() { this.setState(st => ({ covenant: { ...st.covenant, version: st.covenant.version + 1, signatures: { child: { name: '', at: '' }, parent: { name: '', at: '' } } } })); }
   redeem(it) { this.setState(st => { if (st.redeemed[it.id] || st.coins < it.cost) return null; return { coins: st.coins - it.cost, redeemed: { ...st.redeemed, [it.id]: true }, fx: { name: it.name, icon: it.icon, gradient: it.gradient, spent: it.cost, left: st.coins - it.cost } }; }); }
   closeFx() { this.setState({ fx: null }); }
   // ===== 持久化 + 日期感知 =====
@@ -213,7 +230,7 @@ class Component extends DCLogic {
     this.setState(this.autoApprove(this.rollover(merged, ymd(new Date()))));
   }
   componentDidUpdate() {
-    try { const { celebrate, fx, gradModal, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
+    try { const { celebrate, fx, gradModal, sealing, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
   }
   // 換日結算:評估昨天的連續、重置當日完成狀態、套用新的一天預設模式
   rollover(st, today) {
@@ -405,10 +422,21 @@ class Component extends DCLogic {
       gradShow: gradCert.show, gradName: gradCert.name, gradIcon: gradCert.icon, gradDate: gradCert.date, gradDays: gradCert.days, onCloseGrad: gradCert.onClose,
       pauses: S.pauses || 0, pausing: !!S.pausing, notPausing: !S.pausing,
       onPauseStart: () => this.startPause(), onResist: () => this.resistImpulse(), onPauseCancel: () => this.cancelPause(),
-      pTab: S.pTab, pIsPending: S.pTab === 'pending', pIsReport: S.pTab === 'report', pIsRewards: S.pTab === 'rewards',
-      pvP: () => this.pGo('pending'), pvR: () => this.pGo('report'), pvG: () => this.pGo('rewards'),
-      pcP: S.pTab === 'pending' ? ACC : '#8890a3', pcR: S.pTab === 'report' ? ACC : '#8890a3', pcG: S.pTab === 'rewards' ? ACC : '#8890a3',
-      pbP: S.pTab === 'pending' ? '#eef0ff' : 'transparent', pbR: S.pTab === 'report' ? '#eef0ff' : 'transparent', pbG: S.pTab === 'rewards' ? '#eef0ff' : 'transparent',
+      pTab: S.pTab, pIsPending: S.pTab === 'pending', pIsReport: S.pTab === 'report', pIsRewards: S.pTab === 'rewards', pIsCovenant: S.pTab === 'covenant',
+      pvP: () => this.pGo('pending'), pvR: () => this.pGo('report'), pvG: () => this.pGo('rewards'), pvC: () => this.pGo('covenant'),
+      pcP: S.pTab === 'pending' ? ACC : '#8890a3', pcR: S.pTab === 'report' ? ACC : '#8890a3', pcG: S.pTab === 'rewards' ? ACC : '#8890a3', pcC: S.pTab === 'covenant' ? ACC : '#8890a3',
+      pbP: S.pTab === 'pending' ? '#eef0ff' : 'transparent', pbR: S.pTab === 'report' ? '#eef0ff' : 'transparent', pbG: S.pTab === 'rewards' ? '#eef0ff' : 'transparent', pbC: S.pTab === 'covenant' ? '#eef0ff' : 'transparent',
+      covVersion: S.covenant.version, newTerm: S.newTerm, onNewTerm: (e) => this.setNewTerm(e), onAddTerm: () => this.addTerm(),
+      covTerms: S.covenant.terms.map((t, i) => ({ text: t, onDel: () => this.delTerm(i) })),
+      schedWeekday: S.covenant.schedules.weekday, schedWeekend: S.covenant.schedules.weekend,
+      onSchedWeekday: (e) => this.setSched('weekday', e), onSchedWeekend: (e) => this.setSched('weekend', e),
+      sigChildName: S.covenant.signatures.child.name, sigChildSealed: !!S.covenant.signatures.child.at, sigChildAt: S.covenant.signatures.child.at,
+      sigParentName: S.covenant.signatures.parent.name, sigParentSealed: !!S.covenant.signatures.parent.at, sigParentAt: S.covenant.signatures.parent.at,
+      onSigChild: (e) => this.setSigName('child', e), onSigParent: (e) => this.setSigName('parent', e),
+      onSealChildStart: () => this.sealStart('child'), onSealParentStart: () => this.sealStart('parent'), onSealEnd: () => this.sealEnd(),
+      sealingChild: S.sealing === 'child', sealingParent: S.sealing === 'parent',
+      sigChildUnsealed: !S.covenant.signatures.child.at, sigParentUnsealed: !S.covenant.signatures.parent.at,
+      notSealingChild: S.sealing !== 'child', notSealingParent: S.sealing !== 'parent', onResign: () => this.resign(),
       pItems, pWaitLabel: pWait > 0 ? (pWait + ' 筆待確認') : '今天都確認完了', week, pRewards, pTasks,
       pHasPending: pWait > 0, pAllDone: pWait === 0, pWait, onApproveAll: () => this.approveAll(),
       nudgeShow: nudgeCount > 0, nudgeLabel: '有 ' + nudgeCount + ' 項打卡超過一天還沒看，孩子在等你 👀',
