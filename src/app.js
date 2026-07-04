@@ -30,7 +30,7 @@ const dayGap = (a, b) => Math.round((parseYmd(b) - parseYmd(a)) / 86400000);
 // 依日期決定當天預設模式:週末→在家;平日→暑假(7、8 月)在家,否則上學日
 const defaultDayMode = (dateStr) => { const d = parseYmd(dateStr), dow = d.getDay(), m = d.getMonth() + 1; if (dow === 0 || dow === 6) return 'home'; return (m === 7 || m === 8) ? 'home' : 'school'; };
 // 版本號:@@BUILD@@ 於 build.py 打包時自動代入(日期 · 建置編號),用來判斷手機/網頁是否同版
-const APP_VERSION = 'v1.0 · @@BUILD@@';
+const APP_VERSION = 'v2.0 · @@BUILD@@';
 
 // ===== 設定常數(啟發式預設值,非科學定論,依實際狀況調整)=====
 const CONFIG = {
