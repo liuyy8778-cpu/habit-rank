@@ -359,9 +359,8 @@ class Component extends DCLogic {
   // #2:家長撤回退回(看錯了)→ append 一筆更正事件蓋掉 rejected,並補回當初的金幣/XP(淨 0 信任)
   undoReject(behaviorId, date) {
     this.setState(st => {
-      const evs = st.checkinEvents.filter(e => e.behaviorId === behaviorId && e.date === date && e.verdict === 'rejected');
-      const r = evs.length ? evs[evs.length - 1] : null;
-      if (!r) return null;
+      const r = todayEventOf(st.checkinEvents, behaviorId, date);   // 只看最新事件
+      if (!r || r.verdict !== 'rejected') return null;              // 已更正過 → 不重複補
       const fix = { id: behaviorId + '-' + date + '-fix' + Date.now(), behaviorId, label: r.label, icon: r.icon, kind: r.kind,
         coin: r.coin, xp: r.xp, honest: false, missReason: null, correction: true, ts: Date.now(), date, verdict: 'approved' };
       return { checkinEvents: [...st.checkinEvents, fix], coins: st.coins + (r.coin || 0), xp: st.xp + (r.xp || 0) };
@@ -860,9 +859,17 @@ class Component extends DCLogic {
       note: (e.kind === 'habit' ? '關鍵習慣' : '每日任務') + (e.honest ? ' · 誠實回報' : ''), wait: true, ok: false, no: false,
       onOk: () => this.confirmCheckin(e.id, true), onNo: () => this.askReject(e.id) }));   // #2:退回走二次確認
     const pWait = pItems.length;
-    // #2:今天被退回的項目 → 家長可「撤回退回(看錯了)」
-    const rejectedItems = (S.checkinEvents || []).filter(e => e.verdict === 'rejected' && e.date === today && !e.honest).map(e => ({
-      label: e.label, icon: e.icon, onUndo: () => this.undoReject(e.behaviorId, e.date) }));
+    // #2:今天被退回的項目 → 家長可「撤回退回(看錯了)」。看「該行為當天最新事件」是否 rejected(更正後最新變 approved → 自動消失)
+    const rejectedItems = []; const seenRej = {};
+    (S.checkinEvents || []).forEach(e => {
+      if (!e.behaviorId || e.date !== today || e.type === 'trust_checkpoint' || seenRej[e.behaviorId]) return;
+      seenRej[e.behaviorId] = true;
+      const latest = todayEventOf(S.checkinEvents, e.behaviorId, today);
+      if (latest && latest.verdict === 'rejected' && !latest.honest) {
+        const lib = LIB.find(x => x.id === e.behaviorId) || {};
+        rejectedItems.push({ label: latest.label || lib.label, icon: latest.icon || lib.icon, onUndo: () => this.undoReject(e.behaviorId, today) });
+      }
+    });
     const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
     const wr = weeklyReport(S.checkinEvents, today, S.taskOn); // B6:真實週報 + 一句話
     const pRewards = itemsAll.map(it => { const on = !!S.listed[it.id]; return { id: it.id, name: it.name, cost: it.cost + '', iconHref: it.icon, gradient: grads[it.g], onToggle: () => this.toggleList(it.id), tgLabel: on ? '上架中' : '已下架', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
