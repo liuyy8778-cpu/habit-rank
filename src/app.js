@@ -213,6 +213,7 @@ class Component extends DCLogic {
     pauses: 0, pausing: false,
     // 登入狀態(不持久化):authReady=已檢查 session,session=已登入,supaOff=後端不可用時退回本機
     authReady: false, session: null, authEmail: '', authSent: false, authError: '', supaOff: false, guestMode: false,
+    syncStatus: '', // 雲端同步狀態(不持久化):''|'syncing'|'ok'|'error:...'
   };
   toMode(m) { this.setState({ mode: m }); }
   kGo(t) { this.setState({ kTab: t }); }
@@ -350,8 +351,13 @@ class Component extends DCLogic {
   }
   componentDidUpdate() {
     try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, retroOpen,
-      authReady, session, authEmail, authSent, authError, supaOff, guestMode, ...persist } = this.state;
+      authReady, session, authEmail, authSent, authError, supaOff, guestMode, syncStatus, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
+    // 階段 2:登入後把變更鏡像到雲端(去抖動、盡力而為;失敗不影響本機)
+    if (this._supa && this._cloudReady && this.state.session && !this._hydrating) {
+      try { clearTimeout(this._saveTimer); } catch (e) {}
+      this._saveTimer = setTimeout(() => this.cloudSave(), 1500);
+    }
   }
   // ===== 階段 1:登入(email magic link)。後端不可用時 supaOff → 退回純本機,不鎖死 app =====
   initSupabase() {
@@ -360,9 +366,9 @@ class Component extends DCLogic {
     try { this._supa = g.supabase.createClient(SUPA_URL, SUPA_KEY); }
     catch (e) { this.setState({ supaOff: true, authReady: true }); return; }
     this._supa.auth.getSession()
-      .then(({ data }) => this.setState({ authReady: true, session: (data && data.session) ? { email: data.session.user.email } : null }))
+      .then(({ data }) => { const s = data && data.session; this.setState({ authReady: true, session: s ? { email: s.user.email } : null }); if (s) this.cloudInit(); })
       .catch(() => this.setState({ authReady: true }));
-    this._supa.auth.onAuthStateChange((_evt, sess) => this.setState({ session: sess ? { email: sess.user.email } : null, authReady: true, authSent: false }));
+    this._supa.auth.onAuthStateChange((_evt, sess) => { this.setState({ session: sess ? { email: sess.user.email } : null, authReady: true, authSent: false }); if (sess) this.cloudInit(); });
   }
   setAuthEmail(e) { this.setState({ authEmail: e.target.value, authError: '' }); }
   sendMagicLink() {
@@ -375,7 +381,116 @@ class Component extends DCLogic {
       .catch((err) => this.setState({ authError: String((err && err.message) || err) }));
   }
   skipLogin() { this.setState({ guestMode: true }); }
-  signOut() { try { if (this._supa) this._supa.auth.signOut(); } catch (e) {} this.setState({ session: null, guestMode: false, authSent: false }); }
+  signOut() { try { if (this._supa) this._supa.auth.signOut(); } catch (e) {} this._cloudReady = false; this._familyId = null; this._kidId = null; this.setState({ session: null, guestMode: false, authSent: false, syncStatus: '' }); }
+  // ===== 階段 2:雲端資料層(家庭空間 → 小孩 → 打卡/信任/公約)=====
+  // 只鏡像「核心進度」:kid 彙總 + checkin_events + trust_levels + covenant。
+  // proposals / pledges / rewards 暫留本機(id 穩定性待階段 2b 處理)。
+  syncHash() {
+    const S = this.state;
+    return JSON.stringify({ c: S.coins, x: S.xp, s: S.streak, g: S.graduationStage, t: S.taskOn, m: S.manualUnlock,
+      ev: S.checkinEvents, tl: S.trustLevel, ga: S.graduatedAt,
+      cov: { v: S.covenant.version, t: S.covenant.terms, s: S.covenant.schedules, sig: S.covenant.signatures, h: S.covenant.history } });
+  }
+  async cloudInit() {
+    if (!this._supa || this._cloudReady || this._cloudBusy) return;
+    this._cloudBusy = true;
+    try {
+      this.setState({ syncStatus: 'syncing' });
+      const u = await this._supa.auth.getUser();
+      const uid = u && u.data && u.data.user && u.data.user.id;
+      if (!uid) throw new Error('no user');
+      let { data: fams, error: fe } = await this._supa.from('families').select('id').eq('owner_id', uid).limit(1);
+      if (fe) throw fe;
+      let familyId = (fams && fams.length) ? fams[0].id : null;
+      if (!familyId) { const { data: ins, error: ie } = await this._supa.from('families').insert({ owner_id: uid }).select('id').single(); if (ie) throw ie; familyId = ins.id; }
+      this._familyId = familyId;
+      const { data: kids, error: ke } = await this._supa.from('kids').select('*').eq('family_id', familyId).order('created_at');
+      if (ke) throw ke;
+      if (kids && kids.length) await this.cloudLoad(kids[0]);   // 雲端已有 → 以雲端為準
+      else await this.cloudMigrate(familyId);                   // 第一次 → 把本機資料推上去
+      this._cloudReady = true;
+      this.setState({ syncStatus: 'ok' });
+    } catch (e) { this.setState({ syncStatus: 'error:' + ((e && e.message) || e) }); }
+    this._cloudBusy = false;
+  }
+  async cloudMigrate(familyId) {
+    const S = this.state;
+    const name = (S.covenant && S.covenant.signatures && S.covenant.signatures.child && S.covenant.signatures.child.name) || '孩子';
+    const { data: kid, error } = await this._supa.from('kids').insert({
+      family_id: familyId, name, coins: S.coins || 0, xp: S.xp || 0, streak: S.streak || 0,
+      graduation_stage: S.graduationStage || 0, task_on: S.taskOn || {}, manual_unlock: S.manualUnlock || {},
+      schedules: (S.covenant && S.covenant.schedules) || {},
+    }).select('*').single();
+    if (error) throw error;
+    this._kidId = kid.id;
+    await this.pushEvents(); await this.pushTrust(); await this.pushCovenant();
+    this._lastSyncHash = this.syncHash();
+  }
+  async cloudLoad(kid) {
+    this._kidId = kid.id;
+    const res = await Promise.all([
+      this._supa.from('checkin_events').select('*').eq('kid_id', kid.id),
+      this._supa.from('trust_levels').select('*').eq('kid_id', kid.id),
+      this._supa.from('covenant').select('*').eq('family_id', this._familyId).maybeSingle(),
+    ]);
+    const evs = res[0].data || [], tl = res[1].data || [], cov = res[2].data || null;
+    const checkinEvents = evs.map(r => { const lib = LIB.find(x => x.id === r.behavior_id) || {}; return {
+      id: r.behavior_id + '-' + r.date, behaviorId: r.behavior_id, label: lib.label || r.behavior_id, icon: lib.icon || 'i-check',
+      kind: r.kind, coin: r.coin, xp: r.xp, honest: !!r.honest, missReason: r.miss_reason || null,
+      ts: r.ts ? Date.parse(r.ts) : Date.now(), date: r.date, verdict: r.verdict }; });
+    const trustLevel = {}, graduatedAt = {};
+    tl.forEach(r => { trustLevel[r.behavior_id] = r.level || 0; if (r.graduated_at) graduatedAt[r.behavior_id] = String(r.graduated_at).slice(0, 10); });
+    this._hydrating = true;
+    this.setState(st => {
+      const gs = Number.isInteger(kid.graduation_stage) ? kid.graduation_stage : (st.graduationStage || 0);
+      const covenant = cov ? { ...st.covenant, version: cov.version || st.covenant.version,
+        terms: Array.isArray(cov.terms) ? cov.terms : st.covenant.terms,
+        schedules: (cov.schedules && Object.keys(cov.schedules).length) ? cov.schedules : st.covenant.schedules,
+        signatures: (cov.signatures && Object.keys(cov.signatures).length) ? cov.signatures : st.covenant.signatures,
+        history: Array.isArray(cov.history) ? cov.history : (st.covenant.history || []) } : st.covenant;
+      return { coins: kid.coins || 0, xp: kid.xp || 0, streak: kid.streak || 0, graduationStage: gs,
+        taskOn: (kid.task_on && Object.keys(kid.task_on).length) ? kid.task_on : st.taskOn,
+        manualUnlock: kid.manual_unlock || {}, checkinEvents, trustLevel, graduatedAt, covenant };
+    }, () => { this._hydrating = false; this._lastSyncHash = this.syncHash(); });
+  }
+  async pushKid() {
+    const S = this.state;
+    const { error } = await this._supa.from('kids').update({ coins: S.coins || 0, xp: S.xp || 0, streak: S.streak || 0,
+      graduation_stage: S.graduationStage || 0, task_on: S.taskOn || {}, manual_unlock: S.manualUnlock || {},
+      schedules: (S.covenant && S.covenant.schedules) || {} }).eq('id', this._kidId);
+    if (error) throw error;
+  }
+  async pushEvents() {
+    const kid = this._kidId, fam = this._familyId;
+    await this._supa.from('checkin_events').delete().eq('kid_id', kid);
+    const rows = (this.state.checkinEvents || []).map(e => ({ family_id: fam, kid_id: kid, behavior_id: e.behaviorId,
+      kind: e.kind, coin: e.coin || 0, xp: e.xp || 0, honest: !!e.honest, miss_reason: e.missReason || null,
+      verdict: e.verdict, date: e.date, ts: e.ts ? new Date(e.ts).toISOString() : new Date().toISOString() }));
+    if (rows.length) { const { error } = await this._supa.from('checkin_events').insert(rows); if (error) throw error; }
+  }
+  async pushTrust() {
+    const kid = this._kidId, fam = this._familyId, S = this.state;
+    const rows = Object.keys(S.trustLevel || {}).map(bid => ({ family_id: fam, kid_id: kid, behavior_id: bid,
+      level: S.trustLevel[bid] || 0, graduated_at: (S.graduatedAt && S.graduatedAt[bid]) ? S.graduatedAt[bid] : null }));
+    if (rows.length) { const { error } = await this._supa.from('trust_levels').upsert(rows, { onConflict: 'kid_id,behavior_id' }); if (error) throw error; }
+  }
+  async pushCovenant() {
+    const c = this.state.covenant;
+    const { error } = await this._supa.from('covenant').upsert({ family_id: this._familyId, version: c.version,
+      terms: c.terms || [], schedules: c.schedules || {}, signatures: c.signatures || {}, history: c.history || [] }, { onConflict: 'family_id' });
+    if (error) throw error;
+  }
+  async cloudSave() {
+    if (!this._supa || !this._cloudReady || !this._kidId) return;
+    const h = this.syncHash();
+    if (h === this._lastSyncHash) return;         // 沒變 → 不打雲端(也避免 setState 迴圈)
+    try {
+      this.setState({ syncStatus: 'syncing' });
+      await this.pushKid(); await this.pushTrust(); await this.pushCovenant(); await this.pushEvents();
+      this._lastSyncHash = h;
+      this.setState({ syncStatus: 'ok' });
+    } catch (e) { this.setState({ syncStatus: 'error:' + ((e && e.message) || e) }); }
+  }
   // 換日結算:評估昨天的連續、重置當日完成狀態、套用新的一天預設模式
   rollover(st, today) {
     const s = { ...st };
@@ -595,6 +710,8 @@ class Component extends DCLogic {
       authEmail: S.authEmail, authSent: S.authSent, notAuthSent: !S.authSent, authError: S.authError, hasAuthError: !!S.authError,
       onAuthEmail: (e) => this.setAuthEmail(e), onSendMagic: () => this.sendMagicLink(), onSkipLogin: () => this.skipLogin(),
       loggedIn: !!S.session, sessionEmail: S.session ? S.session.email : '', onSignOut: () => this.signOut(),
+      syncLabel: S.syncStatus === 'syncing' ? '☁️ 同步中…' : (S.syncStatus === 'ok' ? '☁️ 已同步' : (String(S.syncStatus).indexOf('error') === 0 ? '⚠️ 同步失敗' : '')),
+      syncIsError: String(S.syncStatus).indexOf('error') === 0, syncErr: String(S.syncStatus).indexOf('error') === 0 ? S.syncStatus.slice(6) : '',
       coins: S.coins, streak: S.streak, xp: S.xp, protects: S.protects, honest: S.honest, honestPct: Math.round(S.honest / 3 * 100) + '%',
       week7, week7Done: week7Done + '/7', week7Good, week7Hint: week7Good ? '狀態很穩,繼續保持' : '斷一天沒關係——看的是這 7 天,不是完美',
       goToday: () => this.kGo('today'), goTasks: () => this.kGo('tasks'), goRank: () => this.kGo('rank'), goShop: () => this.kGo('shop'), goRecord: () => this.kGo('record'),

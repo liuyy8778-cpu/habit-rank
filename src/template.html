@@ -4039,9 +4039,10 @@
                   <div style="font-weight:800;font-size:13px;color:#1a1f2e;margin:0 2px 6px">家庭雲端空間</div>
                   <div style="display:flex;align-items:center;gap:10px;background:#e7f6f0;border-radius:13px;padding:11px 13px">
                     <span style="font-size:16px">☁️</span>
-                    <span style="flex:1;font-size:12px;color:#2f6b53;line-height:1.4">已登入 · <b>{{ sessionEmail }}</b></span>
+                    <span style="flex:1;font-size:12px;color:#2f6b53;line-height:1.4">已登入 · <b>{{ sessionEmail }}</b><br><span style="font-size:11px;color:#5a8a68">{{ syncLabel }}</span></span>
                     <button onclick="{{ onSignOut }}" style="border:1.5px solid #cfe6da;background:#fff;border-radius:10px;padding:7px 12px;color:#2f8a6a;font:700 11.5px 'Noto Sans TC';cursor:pointer">登出</button>
                   </div>
+                  <sc-if value="{{ syncIsError }}"><div style="margin-top:8px;background:#fdf3f3;border:1px solid #f0d8d8;border-radius:11px;padding:9px 12px;font:11px/1.5 ui-monospace,monospace;color:#b5504f;word-break:break-all">同步錯誤:{{ syncErr }}</div></sc-if>
                 </div>
               </sc-if>
               <div style="margin-top:26px;border-top:1px dashed #e7eaf2;padding-top:18px">
