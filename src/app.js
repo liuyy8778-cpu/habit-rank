@@ -45,7 +45,7 @@ const TRUST_NAMES = ['每次確認', '隨機抽查', '已畢業 · 自主'];
 
 // ===== 資料遷移:localStorage schema 版本控管 =====
 // 每次啟動檢查版本,舊資料無損升級並先備份到 backup_v1。
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 function migrateToV2(s) {
   if (!s || s.schemaVersion === SCHEMA_VERSION) return s;
   let v = s.schemaVersion || 1;
@@ -69,6 +69,10 @@ function migrateToV2(s) {
     if (typeof m.propReason !== 'string') m.propReason = '';
     if (typeof m.newPledge !== 'string') m.newPledge = '';
     v = 4;
+  }
+  if (v < 5) {                                                   // B1:畢業階段(0=正常,1=週回顧,2=僅公約,3=已畢業)
+    if (typeof m.graduationStage !== 'number') m.graduationStage = 0;
+    v = 5;
   }
   m.schemaVersion = SCHEMA_VERSION;
   return m;
@@ -187,7 +191,7 @@ class Component extends DCLogic {
     coins: 0, streak: 0, xp: 0, protects: 0, honest: 0,
     habit: {}, checked: {},
     taskOn: { k1: true, k2: true, ld1: true, bd1: true }, manualUnlock: {},
-    trustLevel: {}, graduatedAt: {}, gradModal: null,
+    trustLevel: {}, graduatedAt: {}, gradModal: null, graduationStage: 0, retroOpen: false,
     covenant: {
       version: 1,
       terms: ['到約定時間，自己把手機放回充電區', '有做到就打卡；沒做到也誠實回報', '手機留在充電區過夜，不帶回房間'],
@@ -284,6 +288,10 @@ class Component extends DCLogic {
   closeCeleb() { this.setState({ celebrate: false }); }
   openGrad(id) { this.setState({ gradModal: id }); }
   closeGrad() { this.setState({ gradModal: null }); }
+  // ===== B1:畢業機制 —— 分階段降低監督強度(鷹架不是牢籠)=====
+  advanceGraduation() { this.setState(st => ({ graduationStage: Math.min(3, (st.graduationStage || 0) + 1) })); }
+  openRetro() { this.setState({ retroOpen: true }); }
+  closeRetro() { this.setState({ retroOpen: false }); }
   // ===== 家庭公約 =====
   setNewTerm(e) { this.setState({ newTerm: e.target.value }); }
   addTerm() { this.setState(st => { const t = (st.newTerm || '').trim(); if (!t) return null; return { newTerm: '', covenant: { ...st.covenant, terms: [...st.covenant.terms, t] } }; }); }
@@ -333,7 +341,7 @@ class Component extends DCLogic {
     this.setState(this.autoApprove(this.rollover(merged, ymd(new Date()))));
   }
   componentDidUpdate() {
-    try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
+    try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, retroOpen, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
   }
   // 換日結算:評估昨天的連續、重置當日完成狀態、套用新的一天預設模式
   rollover(st, today) {
@@ -480,6 +488,21 @@ class Component extends DCLogic {
       : gradCount > 0
       ? { level: gradCount + ' 條習慣已畢業', desc: '免驗證的習慣越來越多,繼續加油', icon: 'i-check', color: '#2f8a6a', bg: '#e8f6ef' }
       : { level: '建立信任中', desc: '連續誠實回報,逐步換到「免檢查」的自主權', icon: 'i-shield', color: '#e0a53a', bg: '#fbf3e2' };
+    // ===== B1:畢業機制 —— app 的成功是「小孩不再需要它」 =====
+    const gStage = S.graduationStage || 0, readyGrad = allGrad; // 所有關鍵習慣都畢業(trust 2)= 可畢業
+    const gStageInfo = [
+      { title: '準備畢業了 🎓', desc: '所有關鍵習慣都畢業了。可以開始降低 app 的存在感——它本來就是為了有一天用不到。', next: '開始每週回顧' },
+      { title: '每週回顧', desc: '不用每天打卡了,改成每週日一起回顧就好。你已經自己在走。', next: '進到「只留公約」' },
+      { title: '只留公約', desc: '連回顧都可以放下了,留著那張全家一起簽的約定就夠。', next: '完成畢業儀式' },
+      { title: '已畢業 ✨', desc: '這個 app 完成任務了。自律已經是你的一部分,不再需要它提醒。', next: '' },
+    ][gStage];
+    // 歷程回顧資料
+    const evAll2 = S.checkinEvents || [];
+    const doneEv = evAll2.filter(e => !e.honest && (e.verdict === 'approved' || e.verdict === 'auto'));
+    const honestEv = evAll2.filter(e => e.honest);
+    const datesSorted = evAll2.map(e => e.date).sort();
+    const retroGradList = Object.keys(S.graduatedAt || {}).map(id => { const t = LIB.find(x => x.id === id); return t ? { label: t.label, icon: t.icon, at: S.graduatedAt[id] } : null; }).filter(Boolean);
+    const retroTiers = TIER_NAMES.map((nm, i) => ({ name: nm, reachedBg: i <= reached ? 'linear-gradient(150deg,#7b7bf0,#5b5bd6)' : '#eef0f6', reachedColor: i <= reached ? '#fff' : '#aab0c0', cur: i === reached }));
     const tiers = jrDefs.map((t, i) => { const stt = i < reached ? 'done' : (i === reached ? 'now' : 'lock'), lock = stt === 'lock', isSel = i === sel;
       return { name:t[0], thr: t[2] === 0 ? '起點' : (t[2] + ' XP'), reward:t[3], onSel: () => this.jrSel(i),
         nodeBg: lock ? '#e7eaf2' : 'linear-gradient(150deg,#7b7bf0,#5b5bd6)', nodeColor: lock ? '#aab0c0' : '#fff',
@@ -551,6 +574,13 @@ class Component extends DCLogic {
       dayHint: mode === 'out' ? '🚗 出門日 · 只顯示到哪都能做的任務，連續不中斷' : (mode === 'school' ? '📚 上學日 · 晚到家也 OK，交機時間順延' : '☀️ 在家日 · 完整任務、寬鬆時間'),
       trustLevel: trust.level, trustDesc: trust.desc, trustIcon: trust.icon, trustColor: trust.color, trustBg: trust.bg, trustLines,
       gradShow: gradCert.show, gradName: gradCert.name, gradIcon: gradCert.icon, gradDate: gradCert.date, gradDays: gradCert.days, onCloseGrad: gradCert.onClose,
+      // B1:畢業里程 + 歷程回顧
+      gradMilestoneShow: gStage > 0 || readyGrad, gradStageTitle: gStageInfo.title, gradStageDesc: gStageInfo.desc,
+      gradCanAdvance: gStage < 3 && (gStage > 0 || readyGrad), gradAdvanceLabel: gStageInfo.next, onAdvanceGrad: () => this.advanceGraduation(),
+      onOpenRetro: () => this.openRetro(), retroOpen: !!S.retroOpen, onCloseRetro: () => this.closeRetro(),
+      retroStart: datesSorted.length ? datesSorted[0] : '—', retroDone: doneEv.length + '', retroHonest: honestEv.length + '',
+      retroXp: S.xp + '', retroCoins: S.coins + '', retroTier: TIER_NAMES[reached], retroTiers,
+      retroGradList, retroHasGrad: retroGradList.length > 0, retroGradCount: retroGradList.length + '',
       missAskShow: !!S.missAsk, missAskLabel: S.missAsk ? S.missAsk.label : '',
       onMissEnv: () => this.setMissReason('environment'), onMissMood: () => this.setMissReason('mood'), onMissForgot: () => this.setMissReason('forgot'), onMissSkip: () => this.skipMissReason(),
       pauses: S.pauses || 0, pausing: !!S.pausing, notPausing: !S.pausing,

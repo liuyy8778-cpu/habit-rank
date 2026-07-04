@@ -3758,6 +3758,17 @@
             </div>
             <button onclick="{{ onAddHabit }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:15px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.98)">+ 新增 / 管理習慣</button></div></sc-if>
         <sc-if value="{{ pgRank }}"><div class="scroll"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 16px">段位之路</div>
+            <!-- B1:畢業里程(關鍵習慣全畢業後出現)——鷹架不是牢籠 -->
+            <sc-if value="{{ gradMilestoneShow }}">
+              <div style="background:linear-gradient(150deg,#f5c451,#e0a53a);border-radius:22px;padding:18px 20px;margin-bottom:18px;box-shadow:0 14px 28px -16px rgba(224,165,58,.6)">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:22px">🎓</span><span style="font-weight:900;font-size:17px;color:#fff">{{ gradStageTitle }}</span></div>
+                <div style="font-size:12.5px;color:rgba(255,255,255,.95);line-height:1.6;margin-bottom:14px">{{ gradStageDesc }}</div>
+                <div style="display:flex;gap:9px">
+                  <button onclick="{{ onOpenRetro }}" style="flex:1;border:0;border-radius:13px;padding:12px;background:rgba(255,255,255,.95);color:#b3801f;font:800 13px 'Noto Sans TC';cursor:pointer">查看歷程回顧</button>
+                  <sc-if value="{{ gradCanAdvance }}"><button onclick="{{ onAdvanceGrad }}" style="flex:1;border:1.5px solid rgba(255,255,255,.9);background:none;border-radius:13px;padding:12px;color:#fff;font:800 13px 'Noto Sans TC';cursor:pointer">{{ gradAdvanceLabel }}</button></sc-if>
+                </div>
+              </div>
+            </sc-if>
             <div style="background:linear-gradient(150deg,#6d6df0,#5b5bd6);border-radius:22px;padding:18px 20px;margin-bottom:18px;box-shadow:0 14px 28px -16px rgba(91,91,214,.6)">
               <div style="display:flex;align-items:center;gap:13px;margin-bottom:14px">
                 <div style="width:50px;height:50px;border-radius:16px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;flex:none"><svg style="width:28px;height:28px"><use href="#i-medal"></use></svg></div>
@@ -4102,6 +4113,45 @@
           <div style="display:flex;gap:9px">
             <button onclick="{{ onClosePropose }}" style="flex:none;border:1.5px solid #e7eaf2;background:#fff;border-radius:13px;padding:13px 18px;color:#8890a3;font:700 13px 'Noto Sans TC';cursor:pointer">取消</button>
             <button onclick="{{ onSubmitProposal }}" style="flex:1;border:0;border-radius:13px;padding:13px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 14px 'Noto Sans TC';cursor:pointer">送出提案</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ retroOpen }}">
+      <div style="position:absolute;inset:0;background:rgba(16,18,30,.55);backdrop-filter:blur(3px);animation:scrimIn .3s both;z-index:11;display:flex;flex-direction:column">
+        <div class="scroll" style="flex:1;padding:26px 20px 30px">
+          <div style="background:#fff;border-radius:24px;padding:24px 22px;animation:celebPop .5s both">
+            <div style="text-align:center;margin-bottom:20px">
+              <div style="width:70px;height:70px;border-radius:22px;background:linear-gradient(150deg,#f5c451,#e0a53a);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;box-shadow:0 12px 24px -8px rgba(224,165,58,.7)"><svg style="width:40px;height:40px;color:#fff"><use href="#i-crown"></use></svg></div>
+              <div style="font-weight:900;font-size:20px;color:#1a1f2e">自律歷程回顧</div>
+              <div style="font-size:12px;color:#8890a3;margin-top:3px">從 {{ retroStart }} 到現在,你走了這麼遠</div>
+            </div>
+            <div style="font-weight:800;font-size:13px;color:#5b5bd6;margin:0 2px 10px">段位軌跡</div>
+            <div style="display:flex;gap:6px;margin-bottom:20px">
+              <sc-for list="{{ retroTiers }}" as="rt" hint-placeholder-count="6">
+                <div style="flex:1;text-align:center"><div style="width:100%;aspect-ratio:1;max-height:34px;border-radius:10px;background:{{ rt.reachedBg }};color:{{ rt.reachedColor }};display:flex;align-items:center;justify-content:center;font:800 11px 'Noto Sans TC'">{{ rt.name }}</div></div>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px">
+              <div style="background:#f7f8fc;border-radius:16px;padding:14px"><div style="font:800 22px 'Baloo 2';color:#5b5bd6">{{ retroDone }}</div><div style="font-size:11px;color:#8890a3;margin-top:2px">總打卡數</div></div>
+              <div style="background:#f7f8fc;border-radius:16px;padding:14px"><div style="font:800 22px 'Baloo 2';color:#2fae8a">{{ retroHonest }}</div><div style="font-size:11px;color:#8890a3;margin-top:2px">誠實回報數</div></div>
+              <div style="background:#f7f8fc;border-radius:16px;padding:14px"><div style="font:800 22px 'Baloo 2';color:#1a1f2e">{{ retroTier }}</div><div style="font-size:11px;color:#8890a3;margin-top:2px">最高段位</div></div>
+              <div style="background:#f7f8fc;border-radius:16px;padding:14px"><div style="font:800 22px 'Baloo 2';color:#cf9a2f">{{ retroGradCount }}</div><div style="font-size:11px;color:#8890a3;margin-top:2px">已畢業習慣</div></div>
+            </div>
+            <sc-if value="{{ retroHasGrad }}">
+              <div style="font-weight:800;font-size:13px;color:#5b5bd6;margin:0 2px 10px">畢業的習慣</div>
+              <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+                <sc-for list="{{ retroGradList }}" as="rg" hint-placeholder-count="0">
+                  <div style="display:flex;align-items:center;gap:10px;background:#fbfbfe;border:1px solid rgba(20,25,50,.06);border-radius:13px;padding:11px 13px">
+                    <span style="width:34px;height:34px;border-radius:10px;background:#eef0ff;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:19px;height:19px"><use href="#{{ rg.icon }}"></use></svg></span>
+                    <span style="flex:1;font-weight:700;font-size:13px;color:#1a1f2e">{{ rg.label }}</span>
+                    <span style="font-size:10.5px;color:#8890a3">{{ rg.at }} 畢業 🎓</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <div style="background:#eef0ff;border-radius:16px;padding:14px 16px;margin-bottom:18px;font-size:12.5px;color:#4a4ac2;line-height:1.65">🌱 這個 app 是一副鷹架,不是牢籠。它存在的目的,就是為了有一天你不再需要它——而你做到了。</div>
+            <button onclick="{{ onCloseRetro }}" style="width:100%;border:0;border-radius:14px;padding:14px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 15px 'Noto Sans TC';cursor:pointer">收下這份回顧(可截圖)</button>
           </div>
         </div>
       </div>
