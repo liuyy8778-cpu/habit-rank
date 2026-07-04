@@ -214,6 +214,8 @@ class Component extends DCLogic {
     // 登入狀態(不持久化):authReady=已檢查 session,session=已登入,supaOff=後端不可用時退回本機
     authReady: false, session: null, authEmail: '', authSent: false, authError: '', supaOff: false, guestMode: false,
     syncStatus: '', // 雲端同步狀態(不持久化):''|'syncing'|'ok'|'error:...'
+    // 階段 3:多小孩(不持久化;來自雲端)。currentKidId 另存 device 層級 key。
+    kids: [], currentKidId: null, kidSwitchOpen: false, newKidName: '', newKidAvatar: '🦊',
   };
   toMode(m) { this.setState({ mode: m }); }
   kGo(t) { this.setState({ kTab: t }); }
@@ -351,7 +353,8 @@ class Component extends DCLogic {
   }
   componentDidUpdate() {
     try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, retroOpen,
-      authReady, session, authEmail, authSent, authError, supaOff, guestMode, syncStatus, ...persist } = this.state;
+      authReady, session, authEmail, authSent, authError, supaOff, guestMode, syncStatus,
+      kids, currentKidId, kidSwitchOpen, newKidName, newKidAvatar, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
     // 階段 2:登入後把變更鏡像到雲端(去抖動、盡力而為;失敗不影響本機)
     if (this._supa && this._cloudReady && this.state.session && !this._hydrating) {
@@ -404,10 +407,15 @@ class Component extends DCLogic {
       let familyId = (fams && fams.length) ? fams[0].id : null;
       if (!familyId) { const { data: ins, error: ie } = await this._supa.from('families').insert({ owner_id: uid }).select('id').single(); if (ie) throw ie; familyId = ins.id; }
       this._familyId = familyId;
-      const { data: kids, error: ke } = await this._supa.from('kids').select('*').eq('family_id', familyId).order('created_at');
+      let { data: rows, error: ke } = await this._supa.from('kids').select('*').eq('family_id', familyId).order('created_at');
       if (ke) throw ke;
-      if (kids && kids.length) await this.cloudLoad(kids[0]);   // 雲端已有 → 以雲端為準
-      else await this.cloudMigrate(familyId);                   // 第一次 → 把本機資料推上去
+      rows = rows || [];
+      if (!rows.length) { await this.cloudMigrate(familyId); const r2 = await this._supa.from('kids').select('*').eq('family_id', familyId).order('created_at'); rows = r2.data || []; }
+      // 選目前檢視的小孩:device 記憶的 → 否則第一個
+      let curId = null; try { curId = localStorage.getItem('habitRank_kid'); } catch (e) {}
+      const cur = rows.find(k => k.id === curId) || rows[0];
+      this.setState({ kids: rows.map(k => ({ id: k.id, name: k.name, avatar: k.avatar || '🦊' })), currentKidId: cur ? cur.id : null });
+      if (cur) { await this.cloudLoad(cur); try { localStorage.setItem('habitRank_kid', cur.id); } catch (e) {} }
       this._cloudReady = true;
       this.setState({ syncStatus: 'ok' });
     } catch (e) { this.setState({ syncStatus: 'error:' + ((e && e.message) || e) }); }
@@ -481,14 +489,64 @@ class Component extends DCLogic {
     if (error) throw error;
   }
   async cloudSave() {
-    if (!this._supa || !this._cloudReady || !this._kidId) return;
+    if (!this._supa || !this._cloudReady || !this._kidId) return true;
     const h = this.syncHash();
-    if (h === this._lastSyncHash) return;         // 沒變 → 不打雲端(也避免 setState 迴圈)
+    if (h === this._lastSyncHash) return true;    // 沒變 → 不打雲端(也避免 setState 迴圈)
     try {
       this.setState({ syncStatus: 'syncing' });
       await this.pushKid(); await this.pushTrust(); await this.pushCovenant(); await this.pushEvents();
       this._lastSyncHash = h;
       this.setState({ syncStatus: 'ok' });
+      return true;
+    } catch (e) { this.setState({ syncStatus: 'error:' + ((e && e.message) || e) }); return false; }
+  }
+  // ===== 階段 3:多小孩(切換 / 新增)。每個小孩進度各自獨立、公約全家共用、絕不並排比較 =====
+  openKidSwitch() { this.setState({ kidSwitchOpen: true }); }
+  closeKidSwitch() { this.setState({ kidSwitchOpen: false, newKidName: '' }); }
+  setNewKidName(e) { this.setState({ newKidName: e.target.value }); }
+  setNewKidAvatar(a) { this.setState({ newKidAvatar: a }); }
+  async switchKid(id) {
+    if (!this._supa || id === this.state.currentKidId) { this.setState({ kidSwitchOpen: false }); return; }
+    const ok = await this.cloudSave();                 // 先存好目前小孩,存失敗就不切(避免掉資料)
+    if (!ok) { this.setState({ syncStatus: 'error:切換前存檔失敗,先不切換' }); return; }
+    try {
+      const { data: kid, error } = await this._supa.from('kids').select('*').eq('id', id).single();
+      if (error) throw error;
+      this._lastSyncHash = null;
+      await this.cloudLoad(kid);
+      this.setState({ currentKidId: id, kidSwitchOpen: false, syncStatus: 'ok' });
+      try { localStorage.setItem('habitRank_kid', id); } catch (e) {}
+    } catch (e) { this.setState({ syncStatus: 'error:' + ((e && e.message) || e) }); }
+  }
+  async addKid() {
+    const name = (this.state.newKidName || '').trim();
+    if (!name || !this._supa || !this._familyId) return;
+    const ok = await this.cloudSave();
+    if (!ok) { this.setState({ syncStatus: 'error:新增前存檔失敗' }); return; }
+    try {
+      const { data: kid, error } = await this._supa.from('kids').insert({
+        family_id: this._familyId, name, avatar: this.state.newKidAvatar || '🦊',
+        coins: 0, xp: 0, streak: 0, graduation_stage: 0,
+        task_on: { k1: true, k2: true, sc3: true, ld1: true, bd1: true, em1: true }, manual_unlock: {},
+        schedules: (this.state.covenant && this.state.covenant.schedules) || {},
+      }).select('*').single();
+      if (error) throw error;
+      this._lastSyncHash = null;
+      await this.cloudLoad(kid);                        // 載入新小孩的乾淨狀態(公約仍是全家共用)
+      this.setState(st => ({ kids: [...st.kids, { id: kid.id, name: kid.name, avatar: kid.avatar || '🦊' }],
+        currentKidId: kid.id, kidSwitchOpen: false, newKidName: '', syncStatus: 'ok' }));
+      try { localStorage.setItem('habitRank_kid', kid.id); } catch (e) {}
+    } catch (e) { this.setState({ syncStatus: 'error:' + ((e && e.message) || e) }); }
+  }
+  async renameKid(id) {
+    const cur = ((this.state.kids || []).find(k => k.id === id) || {}).name || '';
+    const name = (typeof window !== 'undefined' && window.prompt) ? window.prompt('幫這個小孩改名字', cur) : null;
+    if (name == null) return;
+    const nm = name.trim(); if (!nm || !this._supa) return;
+    try {
+      const { error } = await this._supa.from('kids').update({ name: nm }).eq('id', id);
+      if (error) throw error;
+      this.setState(st => ({ kids: st.kids.map(k => k.id === id ? { ...k, name: nm } : k) }));
     } catch (e) { this.setState({ syncStatus: 'error:' + ((e && e.message) || e) }); }
   }
   // 換日結算:評估昨天的連續、重置當日完成狀態、套用新的一天預設模式
@@ -556,6 +614,7 @@ class Component extends DCLogic {
   cancelPause() { this.setState({ pausing: false }); }
   renderVals() {
     const S = this.state, ACC = '#5b5bd6', GRAD = 'linear-gradient(135deg,#6d6df0,#5b5bd6)';
+    const curKid = (S.kids || []).find(k => k.id === S.currentKidId) || null; // 階段 3:目前檢視的小孩
     const grads = { indigo:'linear-gradient(150deg,#7b7bf0,#5b5bd6)', teal:'linear-gradient(150deg,#4fd0a8,#2fae8a)', amber:'linear-gradient(150deg,#f5c451,#e0a53a)', magenta:'linear-gradient(150deg,#f56bb8,#d23bd0)', sky:'linear-gradient(150deg,#5bb8f0,#3b8ee0)' };
     // 依家長啟用(taskOn)+ 今天模式(dayMode)決定當天實際顯示的任務。
     // 出門日只留「到哪都能做」的任務(where:anywhere)。
@@ -709,6 +768,14 @@ class Component extends DCLogic {
       authEmail: S.authEmail, authSent: S.authSent, notAuthSent: !S.authSent, authError: S.authError, hasAuthError: !!S.authError,
       onAuthEmail: (e) => this.setAuthEmail(e), onSendMagic: () => this.sendMagicLink(), onSkipLogin: () => this.skipLogin(),
       loggedIn: !!S.session, sessionEmail: S.session ? S.session.email : '', onSignOut: () => this.signOut(),
+      // 階段 3:多小孩切換
+      kidSwitchable: !!S.session && (S.kids || []).length >= 1, notKidSwitchable: !(!!S.session && (S.kids || []).length >= 1),
+      currentKidName: (curKid && curKid.name) || '小孩', currentKidAvatar: (curKid && curKid.avatar) || '🙂',
+      kidSwitchOpen: !!S.kidSwitchOpen, onOpenKidSwitch: () => this.openKidSwitch(), onCloseKidSwitch: () => this.closeKidSwitch(),
+      kidList: (S.kids || []).map(k => ({ id: k.id, name: k.name, avatar: k.avatar || '🦊', isCurrent: k.id === S.currentKidId,
+        rowBg: k.id === S.currentKidId ? '#eef0ff' : '#fff', rowBorder: k.id === S.currentKidId ? '#5b5bd6' : '#e7eaf2', onPick: () => this.switchKid(k.id), onRename: () => this.renameKid(k.id) })),
+      newKidName: S.newKidName, onNewKidName: (e) => this.setNewKidName(e), onAddKid: () => this.addKid(),
+      kidAvatarOptions: ['🦊', '🐯', '🐰', '🐻', '🐨', '🦁', '🐼', '🐧'].map(a => ({ a, selBg: a === S.newKidAvatar ? '#eef0ff' : '#f2f3f7', selRing: a === S.newKidAvatar ? '0 0 0 2px #5b5bd6 inset' : 'none', onPick: () => this.setNewKidAvatar(a) })),
       syncLabel: S.syncStatus === 'syncing' ? '☁️ 同步中…' : (S.syncStatus === 'ok' ? '☁️ 已同步' : (String(S.syncStatus).indexOf('error') === 0 ? '⚠️ 同步失敗' : '')),
       syncIsError: String(S.syncStatus).indexOf('error') === 0, syncErr: String(S.syncStatus).indexOf('error') === 0 ? S.syncStatus.slice(6) : '',
       coins: S.coins, streak: S.streak, xp: S.xp, protects: S.protects, honest: S.honest, honestPct: Math.round(S.honest / 3 * 100) + '%',
