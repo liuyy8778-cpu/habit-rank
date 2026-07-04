@@ -4232,6 +4232,7 @@
                   <span style="flex:1;font-weight:800;font-size:15px;color:#1a1f2e">{{ k.name }}</span>
                 </button>
                 <sc-if value="{{ k.isCurrent }}"><span style="font-size:11px;font-weight:700;color:#5b5bd6;background:#e7e7fb;border-radius:8px;padding:4px 9px;flex:none">檢視中</span></sc-if>
+                <sc-if value="{{ k.canReset }}"><button onclick="{{ k.onResetPin }}" style="border:0;background:none;color:#a6adbe;font-size:14px;cursor:pointer;flex:none;padding:2px 4px" title="重設密碼">🔑</button></sc-if>
                 <button onclick="{{ k.onRename }}" style="border:0;background:none;color:#a6adbe;font-size:15px;cursor:pointer;flex:none;padding:2px 4px">✏️</button>
               </div>
             </sc-for>
@@ -4273,6 +4274,26 @@
           <button onclick="{{ onPinCancel }}" style="border:0;background:none;color:rgba(255,255,255,.9);font:600 13px 'Noto Sans TC';cursor:pointer">回小孩頁</button>
           <sc-if value="{{ pinIsEnter }}"><button onclick="{{ onForgotPin }}" style="border:0;background:none;color:rgba(255,255,255,.7);font:600 13px 'Noto Sans TC';cursor:pointer;text-decoration:underline">忘記 PIN?登出重設</button></sc-if>
         </div>
+      </div>
+    </sc-if>
+    <!-- 孩子端身分保護:專屬空間 PIN 閘門 -->
+    <sc-if value="{{ showKidPinGate }}">
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#4fd0a8,#2fae8a);z-index:46;padding:24px">
+        <div style="width:60px;height:60px;border-radius:19px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:14px;font-size:30px">🔒</div>
+        <div style="font-weight:900;font-size:19px;color:#fff;margin-bottom:5px">{{ kidPinTitle }}</div>
+        <div style="font-size:12.5px;color:rgba(255,255,255,.92);line-height:1.55;text-align:center;max-width:270px;margin-bottom:20px">{{ kidPinSubtitle }}</div>
+        <div style="display:flex;gap:14px;margin-bottom:14px">
+          <sc-for list="{{ kidPinDots }}" as="dot" hint-placeholder-count="4">
+            <span style="width:15px;height:15px;border-radius:50%;background:{{ dot.dotBg }};border:2px solid rgba(255,255,255,.7)"></span>
+          </sc-for>
+        </div>
+        <sc-if value="{{ hasKidPinError }}"><div style="font-size:12px;color:#fff4c8;font-weight:700;margin-bottom:12px">{{ kidPinError }}</div></sc-if>
+        <div style="display:grid;grid-template-columns:repeat(3,66px);gap:12px;margin-top:6px">
+          <sc-for list="{{ kidPinKeys }}" as="key" hint-placeholder-count="12">
+            <button onclick="{{ key.onPress }}" style="height:66px;border:0;border-radius:50%;background:{{ key.keyBg }};color:#fff;font:600 24px 'Space Grotesk';cursor:pointer">{{ key.label }}</button>
+          </sc-for>
+        </div>
+        <button onclick="{{ onKidPinCancel }}" style="margin-top:22px;border:0;background:none;color:rgba(255,255,255,.9);font:600 13px 'Noto Sans TC';cursor:pointer">取消</button>
       </div>
     </sc-if>
     <!-- 階段 1:登入載入中 -->

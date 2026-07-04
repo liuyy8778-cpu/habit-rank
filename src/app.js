@@ -195,8 +195,20 @@ function dataProbe(events, today) {
   Object.keys(rejDays).forEach(k => { const i = k.indexOf('|'), bid = k.slice(0, i), date = k.slice(i + 1); rejN++; const nev = todayEventOf(evs, bid, dateMinus(date, -1)); if (nev && nev.verdict !== 'rejected') recov++; });
   return { latAvg: latN ? Math.round(latSum / latN) : null, latN, sesAvg: sesN ? Math.round(sesSum / sesN) : null, sesN, recovRate: rejN ? Math.round(recov / rejN * 100) : null, rejN };
 }
+// 孩子端 PIN 閘門的純決策(方便測試):guard(家長 PIN 放行)/ set(兩次)/ enter(連錯5次只收家長 PIN)
+function kidPinEval(mode, stage, entry, firstEntry, targetPin, parentPin, attempts) {
+  if (mode === 'guard') return (parentPin && entry === parentPin) ? { r: 'toSet' } : { r: 'err', msg: '家長 PIN 不對' };
+  if (mode === 'set') {
+    if (stage === 2) return (entry === firstEntry) ? { r: 'setDone' } : { r: 'setMismatch' };
+    return { r: 'setFirst' };
+  }
+  const locked = (attempts || 0) >= 5;                           // 連錯 5 次 → 只收家長 PIN
+  if ((!locked && targetPin && entry === targetPin) || (parentPin && entry === parentPin)) return { r: 'switch' };
+  const na = (attempts || 0) + 1;
+  return { r: 'wrong', attempts: na, msg: (na >= 5 ? '太多次了,請家長輸入 PIN' : '密碼不對,再試一次') };
+}
 // 除錯/測試用:純函式暴露到 window(唯讀,無副作用)
-if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe };
+if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe, kidPinEval };
 
 // ===== B6:家長週報 =====
 // 規則式(不需 LLM)從 checkinEvents 近 7 天算出數據 + 一句「對話起點」。
@@ -307,6 +319,8 @@ class Component extends DCLogic {
     // 家長 PIN 關卡(不持久化;PIN 本身另存 device key habitRank_pin)
     pinMode: null, pinEntry: '', pinError: '', pinStage: 1, parentUnlocked: false,
     rejectConfirm: null, // #2:退回二次確認對話框(不持久化)
+    // 孩子端身分保護:切換時的 PIN 閘門(不持久化;孩子密碼存雲端 kids.pin + 記憶體 _kidPins)
+    kidPinMode: null, kidPinTarget: null, kidPinEntry: '', kidPinError: '', kidPinStage: 1,
   };
   toMode(m) { this.setState({ mode: m }); }
   // ===== 家長 PIN:小孩沒 PIN 進不了家長頁(批准/改任務/重設都鎖在裡面)=====
@@ -517,7 +531,8 @@ class Component extends DCLogic {
     try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, retroOpen,
       authReady, session, authEmail, authSent, authError, supaOff, guestMode, syncStatus,
       kids, currentKidId, kidSwitchOpen, newKidName, newKidAvatar,
-      pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm, ...persist } = this.state;
+      pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm,
+      kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
     // 階段 2:登入後把變更鏡像到雲端(去抖動、盡力而為;失敗不影響本機)
     if (this._supa && this._cloudReady && this.state.session && !this._hydrating) {
@@ -578,7 +593,8 @@ class Component extends DCLogic {
       // 選目前檢視的小孩:device 記憶的 → 否則第一個
       let curId = null; try { curId = localStorage.getItem('habitRank_kid'); } catch (e) {}
       const cur = rows.find(k => k.id === curId) || rows[0];
-      this.setState({ kids: rows.map(k => ({ id: k.id, name: k.name, avatar: k.avatar || '🦊' })), currentKidId: cur ? cur.id : null });
+      this._kidPins = {}; rows.forEach(k => { if (k.pin) this._kidPins[k.id] = k.pin; }); // 身分保護:密碼進記憶體,不進渲染 state
+      this.setState({ kids: rows.map(k => ({ id: k.id, name: k.name, avatar: k.avatar || '🦊', hasPin: !!k.pin })), currentKidId: cur ? cur.id : null });
       if (cur) { await this.cloudLoad(cur); try { localStorage.setItem('habitRank_kid', cur.id); } catch (e) {} }
       this._cloudReady = true;
       this.setState({ syncStatus: 'ok' });
@@ -707,22 +723,68 @@ class Component extends DCLogic {
     } catch (e) { this.setState({ syncStatus: 'error:' + ((e && e.message) || e) }); return false; }
   }
   // ===== 階段 3:多小孩(切換 / 新增)。每個小孩進度各自獨立、公約全家共用、絕不並排比較 =====
-  openKidSwitch() { this.setState({ kidSwitchOpen: true }); }
+  openKidSwitch() {
+    if (this.state.mode === 'parent') { this.setState({ kidSwitchOpen: true }); return; } // 家長已通過家長 PIN,可任意切換
+    const cur = this.state.currentKidId;
+    if (cur && !this._kidPin(cur)) { this._startKidPin('set', cur); return; } // 離開自己空間前先鎖住它(自己設,不需家長 PIN)
+    this.setState({ kidSwitchOpen: true });
+  }
   closeKidSwitch() { this.setState({ kidSwitchOpen: false, newKidName: '' }); }
   setNewKidName(e) { this.setState({ newKidName: e.target.value }); }
   setNewKidAvatar(a) { this.setState({ newKidAvatar: a }); }
-  async switchKid(id) {
+  _kidPin(id) { return (this._kidPins || {})[id]; }
+  _startKidPin(mode, target) { this._pinAttempts = 0; this.setState({ kidPinMode: mode, kidPinTarget: target, kidPinEntry: '', kidPinError: '', kidPinStage: 1, kidSwitchOpen: false }); }
+  // 從切換清單選另一個孩子
+  switchKid(id) {
     if (!this._supa || id === this.state.currentKidId) { this.setState({ kidSwitchOpen: false }); return; }
-    const ok = await this.cloudSave();                 // 先存好目前小孩,存失敗就不切(避免掉資料)
+    if (this.state.mode === 'parent') { this.setState({ kidSwitchOpen: false }); this._doSwitch(id); return; } // 家長直接切
+    if (this._kidPin(id)) this._startKidPin('enter', id);        // 有密碼 → 輸入
+    else this._startKidPin('guard', id);                         // 沒密碼(替非本人設定)→ 先家長 PIN(防搶註)
+  }
+  // 實際切換:先存好目前孩子,再載入目標孩子
+  async _doSwitch(id) {
+    const ok = await this.cloudSave();
     if (!ok) { this.setState({ syncStatus: 'error:切換前存檔失敗,先不切換' }); return; }
     try {
       const { data: kid, error } = await this._supa.from('kids').select('*').eq('id', id).single();
       if (error) throw error;
+      if (kid.pin) this._kidPins[id] = kid.pin;
       this._lastSyncHash = null;
       await this.cloudLoad(kid);
       this.setState({ currentKidId: id, kidSwitchOpen: false, syncStatus: 'ok' });
       try { localStorage.setItem('habitRank_kid', id); } catch (e) {}
     } catch (e) { this.setState({ syncStatus: 'error:' + ((e && e.message) || e) }); }
+  }
+  // 孩子端 PIN 鍵盤:guard(家長 PIN 放行去設定)/ set(輸兩次)/ enter(比對,連錯 5 次只收家長 PIN)
+  kidPinPress(d) {
+    const st = this.state; if (!st.kidPinMode || st.kidPinEntry.length >= 4) return;
+    const e = st.kidPinEntry + d, target = st.kidPinTarget;
+    if (e.length < 4) { this.setState({ kidPinEntry: e, kidPinError: '' }); return; }
+    const out = kidPinEval(st.kidPinMode, st.kidPinStage, e, this._kidPinFirst, this._kidPin(target), this._readPin(), this._pinAttempts);
+    if (out.r === 'toSet') { this.setState({ kidPinMode: 'set', kidPinEntry: '', kidPinStage: 1, kidPinError: '' }); }
+    else if (out.r === 'setFirst') { this._kidPinFirst = e; this.setState({ kidPinEntry: '', kidPinStage: 2, kidPinError: '' }); }
+    else if (out.r === 'setMismatch') { this.setState({ kidPinEntry: '', kidPinStage: 1, kidPinError: '兩次不一樣,重設一次' }); }
+    else if (out.r === 'setDone') { this._saveKidPin(target, e); this._afterKidPinOk(target); }
+    else if (out.r === 'switch') { this._pinAttempts = 0; this.setState({ kidPinMode: null, kidPinEntry: '' }); this._doSwitch(target); }
+    else if (out.r === 'wrong') { this._pinAttempts = out.attempts; this.setState({ kidPinEntry: '', kidPinError: out.msg }); }
+    else this.setState({ kidPinEntry: '', kidPinError: out.msg || '' });   // 'err'
+  }
+  kidPinDelete() { this.setState(st => ({ kidPinEntry: st.kidPinEntry.slice(0, -1), kidPinError: '' })); }
+  kidPinCancel() { this._pinAttempts = 0; this.setState({ kidPinMode: null, kidPinTarget: null, kidPinEntry: '', kidPinStage: 1, kidPinError: '' }); }
+  _afterKidPinOk(target) {
+    this.setState({ kidPinMode: null, kidPinEntry: '', kidPinStage: 1, kidPinError: '' });
+    if (target === this.state.currentKidId) this.setState({ kidSwitchOpen: true }); // 鎖好自己 → 開切換清單
+    else this._doSwitch(target);                                                    // 幫他設好 → 切到他
+  }
+  _saveKidPin(id, pin) {
+    this._kidPins = this._kidPins || {}; this._kidPins[id] = pin;
+    this.setState(st => ({ kids: st.kids.map(k => k.id === id ? { ...k, hasPin: true } : k) }));
+    if (this._supa) { try { this._supa.from('kids').update({ pin }).eq('id', id).then(() => {}, () => {}); } catch (e) {} }
+  }
+  resetKidPin(id) {                                              // 家長重設某孩子密碼(下次進要重設)
+    this._kidPins = this._kidPins || {}; delete this._kidPins[id];
+    this.setState(st => ({ kids: st.kids.map(k => k.id === id ? { ...k, hasPin: false } : k) }));
+    if (this._supa) { try { this._supa.from('kids').update({ pin: null }).eq('id', id).then(() => {}, () => {}); } catch (e) {} }
   }
   async addKid() {
     const name = (this.state.newKidName || '').trim();
@@ -1018,7 +1080,23 @@ class Component extends DCLogic {
       currentKidName: (curKid && curKid.name) || '小孩', currentKidAvatar: (curKid && curKid.avatar) || '🙂',
       kidSwitchOpen: !!S.kidSwitchOpen, onOpenKidSwitch: () => this.openKidSwitch(), onCloseKidSwitch: () => this.closeKidSwitch(),
       kidList: (S.kids || []).map(k => ({ id: k.id, name: k.name, avatar: k.avatar || '🦊', isCurrent: k.id === S.currentKidId,
-        rowBg: k.id === S.currentKidId ? '#eef0ff' : '#fff', rowBorder: k.id === S.currentKidId ? '#5b5bd6' : '#e7eaf2', onPick: () => this.switchKid(k.id), onRename: () => this.renameKid(k.id) })),
+        rowBg: k.id === S.currentKidId ? '#eef0ff' : '#fff', rowBorder: k.id === S.currentKidId ? '#5b5bd6' : '#e7eaf2',
+        canReset: S.mode === 'parent' && !!k.hasPin, onResetPin: () => this.resetKidPin(k.id),   // 家長端可重設孩子密碼
+        onPick: () => this.switchKid(k.id), onRename: () => this.renameKid(k.id) })),
+      // 孩子端身分保護:PIN 閘門
+      showKidPinGate: !!S.kidPinMode,
+      kidPinTitle: S.kidPinMode === 'guard' ? '家長確認' : (S.kidPinMode === 'enter' ? '輸入密碼' : (S.kidPinStage === 2 ? '再輸入一次確認' : (S.kidPinTarget === S.currentKidId ? '設定你的密碼' : '設定專屬密碼'))),
+      kidPinSubtitle: (function () { const nm = ((S.kids || []).find(k => k.id === S.kidPinTarget) || {}).name || '孩子';
+        if (S.kidPinMode === 'guard') return '幫 ' + nm + ' 開通專屬空間,請家長輸入 PIN';
+        if (S.kidPinMode === 'enter') return '這是 ' + nm + ' 的空間,請輸入他的密碼';
+        if (S.kidPinStage === 2) return '確認一下,避免打錯。';
+        return S.kidPinTarget === S.currentKidId ? '設一個只有你知道的密碼 🔒 這是你的專屬空間' : ('這是 ' + nm + ' 的專屬空間,設一個只有他知道的密碼'); })(),
+      kidPinDots: [0, 1, 2, 3].map(i => ({ dotBg: i < S.kidPinEntry.length ? '#fff' : 'transparent' })),
+      kidPinError: S.kidPinError, hasKidPinError: !!S.kidPinError,
+      kidPinKeys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'blank', '0', 'del'].map(k => ({
+        label: k === 'del' ? '⌫' : (k === 'blank' ? '' : k), keyBg: k === 'blank' ? 'transparent' : 'rgba(255,255,255,.18)',
+        onPress: k === 'del' ? (() => this.kidPinDelete()) : (k === 'blank' ? (() => {}) : (() => this.kidPinPress(k))) })),
+      onKidPinCancel: () => this.kidPinCancel(),
       newKidName: S.newKidName, onNewKidName: (e) => this.setNewKidName(e), onAddKid: () => this.addKid(),
       kidAvatarOptions: ['🦊', '🐯', '🐰', '🐻', '🐨', '🦁', '🐼', '🐧'].map(a => ({ a, selBg: a === S.newKidAvatar ? '#eef0ff' : '#f2f3f7', selRing: a === S.newKidAvatar ? '0 0 0 2px #5b5bd6 inset' : 'none', onPick: () => this.setNewKidAvatar(a) })),
       syncLabel: S.syncStatus === 'syncing' ? '☁️ 同步中…' : (S.syncStatus === 'ok' ? '☁️ 已同步' : (String(S.syncStatus).indexOf('error') === 0 ? '⚠️ 同步失敗' : '')),
