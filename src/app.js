@@ -32,6 +32,11 @@ const defaultDayMode = (dateStr) => { const d = parseYmd(dateStr), dow = d.getDa
 // 版本號:@@BUILD@@ 於 build.py 打包時自動代入(日期 · 建置編號),用來判斷手機/網頁是否同版
 const APP_VERSION = 'v2.0 · @@BUILD@@';
 
+// ===== Supabase 後端(家庭雲端空間)=====
+// publishable key 設計上可公開(靠 RLS 保護),放進前端安全。service_role / DB 密碼永不進前端。
+const SUPA_URL = 'https://zsngoedhnkeeateoyexl.supabase.co';
+const SUPA_KEY = 'sb_publishable_QwG4T28jqwU1cqSNwI79UA_0wNHOdpR';
+
 // ===== 設定常數(啟發式預設值,非科學定論,依實際狀況調整)=====
 const CONFIG = {
   honestMissXP: 5,             // 誠實承認沒做到:固定小額 XP(平額,不隨任務浮動)
@@ -206,6 +211,8 @@ class Component extends DCLogic {
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
+    // 登入狀態(不持久化):authReady=已檢查 session,session=已登入,supaOff=後端不可用時退回本機
+    authReady: false, session: null, authEmail: '', authSent: false, authError: '', supaOff: false, guestMode: false,
   };
   toMode(m) { this.setState({ mode: m }); }
   kGo(t) { this.setState({ kTab: t }); }
@@ -339,10 +346,36 @@ class Component extends DCLogic {
     if (saved) saved = migrateToV2(saved);
     const merged = saved ? { ...this.state, ...saved } : { ...this.state };
     this.setState(this.autoApprove(this.rollover(merged, ymd(new Date()))));
+    this.initSupabase();
   }
   componentDidUpdate() {
-    try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, retroOpen, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
+    try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, retroOpen,
+      authReady, session, authEmail, authSent, authError, supaOff, guestMode, ...persist } = this.state;
+      localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
   }
+  // ===== 階段 1:登入(email magic link)。後端不可用時 supaOff → 退回純本機,不鎖死 app =====
+  initSupabase() {
+    const g = (typeof window !== 'undefined') ? window : {};
+    if (!g.supabase || !g.supabase.createClient) { this.setState({ supaOff: true, authReady: true }); return; }
+    try { this._supa = g.supabase.createClient(SUPA_URL, SUPA_KEY); }
+    catch (e) { this.setState({ supaOff: true, authReady: true }); return; }
+    this._supa.auth.getSession()
+      .then(({ data }) => this.setState({ authReady: true, session: (data && data.session) ? { email: data.session.user.email } : null }))
+      .catch(() => this.setState({ authReady: true }));
+    this._supa.auth.onAuthStateChange((_evt, sess) => this.setState({ session: sess ? { email: sess.user.email } : null, authReady: true, authSent: false }));
+  }
+  setAuthEmail(e) { this.setState({ authEmail: e.target.value, authError: '' }); }
+  sendMagicLink() {
+    const email = (this.state.authEmail || '').trim();
+    if (!email || !this._supa) return;
+    this.setState({ authError: '' });
+    const redirect = (typeof location !== 'undefined') ? location.href.split('#')[0] : undefined;
+    this._supa.auth.signInWithOtp({ email, options: { emailRedirectTo: redirect } })
+      .then(({ error }) => this.setState(error ? { authError: error.message } : { authSent: true }))
+      .catch((err) => this.setState({ authError: String((err && err.message) || err) }));
+  }
+  skipLogin() { this.setState({ guestMode: true }); }
+  signOut() { try { if (this._supa) this._supa.auth.signOut(); } catch (e) {} this.setState({ session: null, guestMode: false, authSent: false }); }
   // 換日結算:評估昨天的連續、重置當日完成狀態、套用新的一天預設模式
   rollover(st, today) {
     const s = { ...st };
@@ -556,6 +589,12 @@ class Component extends DCLogic {
     const K = S.kTab, isKid = S.mode === 'kid';
     return {
       isKid, isParent: S.mode === 'parent', toKid: () => this.toMode('kid'), toParent: () => this.toMode('parent'),
+      // 階段 1:登入閘門
+      showAuthLoading: !S.supaOff && !S.guestMode && !S.authReady,
+      showLogin: !S.supaOff && !S.guestMode && S.authReady && !S.session,
+      authEmail: S.authEmail, authSent: S.authSent, notAuthSent: !S.authSent, authError: S.authError, hasAuthError: !!S.authError,
+      onAuthEmail: (e) => this.setAuthEmail(e), onSendMagic: () => this.sendMagicLink(), onSkipLogin: () => this.skipLogin(),
+      loggedIn: !!S.session, sessionEmail: S.session ? S.session.email : '', onSignOut: () => this.signOut(),
       coins: S.coins, streak: S.streak, xp: S.xp, protects: S.protects, honest: S.honest, honestPct: Math.round(S.honest / 3 * 100) + '%',
       week7, week7Done: week7Done + '/7', week7Good, week7Hint: week7Good ? '狀態很穩,繼續保持' : '斷一天沒關係——看的是這 7 天,不是完美',
       goToday: () => this.kGo('today'), goTasks: () => this.kGo('tasks'), goRank: () => this.kGo('rank'), goShop: () => this.kGo('shop'), goRecord: () => this.kGo('record'),

@@ -1569,6 +1569,7 @@
   var REACT_SRI = "";
   var REACT_DOM_URL = "/cdn/react-dom.production.min.js";
   var REACT_DOM_SRI = "";
+  var SUPABASE_URL = "/cdn/supabase.js";
   function hideRawTemplate() {
     const s = document.createElement("style");
     s.textContent = "x-dc{display:none!important}";
@@ -1589,11 +1590,14 @@
   }
   function loadReactUmd() {
     const w = window;
-    if (w.React && w.ReactDOM) return Promise.resolve();
-    return Promise.all([
-      loadScript(REACT_URL, REACT_SRI),
-      loadScript(REACT_DOM_URL, REACT_DOM_SRI)
-    ]).then(() => void 0);
+    const jobs = [];
+    if (!(w.React && w.ReactDOM)) {
+      jobs.push(loadScript(REACT_URL, REACT_SRI), loadScript(REACT_DOM_URL, REACT_DOM_SRI));
+    }
+    // 家庭自律 app 的 Supabase 後端(全域 window.supabase.createClient);載入失敗不擋 app 啟動
+    if (!w.supabase) jobs.push(loadScript(SUPABASE_URL, "").catch(() => void 0));
+    if (!jobs.length) return Promise.resolve();
+    return Promise.all(jobs).then(() => void 0);
   }
   function init() {
     const runtime = createRuntime(document);

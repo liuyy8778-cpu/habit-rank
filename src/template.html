@@ -4034,6 +4034,16 @@
                   </div>
                 </div>
               </sc-if>
+              <sc-if value="{{ loggedIn }}">
+                <div style="margin-top:26px;border-top:1px dashed #e7eaf2;padding-top:18px">
+                  <div style="font-weight:800;font-size:13px;color:#1a1f2e;margin:0 2px 6px">家庭雲端空間</div>
+                  <div style="display:flex;align-items:center;gap:10px;background:#e7f6f0;border-radius:13px;padding:11px 13px">
+                    <span style="font-size:16px">☁️</span>
+                    <span style="flex:1;font-size:12px;color:#2f6b53;line-height:1.4">已登入 · <b>{{ sessionEmail }}</b></span>
+                    <button onclick="{{ onSignOut }}" style="border:1.5px solid #cfe6da;background:#fff;border-radius:10px;padding:7px 12px;color:#2f8a6a;font:700 11.5px 'Noto Sans TC';cursor:pointer">登出</button>
+                  </div>
+                </div>
+              </sc-if>
               <div style="margin-top:26px;border-top:1px dashed #e7eaf2;padding-top:18px">
                 <div style="font-weight:800;font-size:13px;color:#c05a5a;margin:0 2px 6px">測試工具 · 危險操作</div>
                 <div style="font-size:11.5px;color:#a6adbe;line-height:1.5;margin:0 2px 12px">「重新來過」會清掉所有金幣、XP、段位、打卡紀錄與簽名,回到全新狀態,無法復原。建議先匯出備份。</div>
@@ -4153,6 +4163,32 @@
             <div style="background:#eef0ff;border-radius:16px;padding:14px 16px;margin-bottom:18px;font-size:12.5px;color:#4a4ac2;line-height:1.65">🌱 這個 app 是一副鷹架,不是牢籠。它存在的目的,就是為了有一天你不再需要它——而你做到了。</div>
             <button onclick="{{ onCloseRetro }}" style="width:100%;border:0;border-radius:14px;padding:14px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 15px 'Noto Sans TC';cursor:pointer">收下這份回顧(可截圖)</button>
           </div>
+        </div>
+      </div>
+    </sc-if>
+    <!-- 階段 1:登入載入中 -->
+    <sc-if value="{{ showAuthLoading }}">
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#5b5bd6;z-index:50">
+        <div style="width:56px;height:56px;border-radius:18px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:14px;animation:floaty 3s ease-in-out infinite"><svg style="width:30px;height:30px"><use href="#i-medal"></use></svg></div>
+        <div style="color:rgba(255,255,255,.9);font:600 13px 'Noto Sans TC'">連線家庭空間中…</div>
+      </div>
+    </sc-if>
+    <!-- 階段 1:登入畫面(email magic link)-->
+    <sc-if value="{{ showLogin }}">
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;background:linear-gradient(160deg,#6d6df0,#5b5bd6);z-index:50;padding:28px 24px">
+        <div style="background:#fff;border-radius:26px;padding:28px 24px;box-shadow:0 24px 60px -20px rgba(0,0,0,.5)">
+          <div style="width:60px;height:60px;border-radius:19px;background:linear-gradient(150deg,#7b7bf0,#5b5bd6);display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:16px"><svg style="width:32px;height:32px"><use href="#i-medal"></use></svg></div>
+          <div style="font-weight:900;font-size:20px;color:#1a1f2e;margin-bottom:5px">家庭自律養成</div>
+          <sc-if value="{{ notAuthSent }}">
+            <div style="font-size:12.5px;color:#8890a3;line-height:1.55;margin-bottom:18px">輸入家長 email，我們寄一條登入連結給你。點信裡的連結就登入,不用記密碼。</div>
+            <input value="{{ authEmail }}" oninput="{{ onAuthEmail }}" placeholder="家長 email" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:13px;padding:14px;font:400 14px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:10px">
+            <sc-if value="{{ hasAuthError }}"><div style="font-size:11.5px;color:#c05a5a;line-height:1.5;margin-bottom:10px">⚠️ {{ authError }}</div></sc-if>
+            <button onclick="{{ onSendMagic }}" style="width:100%;border:0;border-radius:14px;padding:15px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 15px 'Noto Sans TC';cursor:pointer">寄登入連結給我</button>
+          </sc-if>
+          <sc-if value="{{ authSent }}">
+            <div style="text-align:center;padding:8px 0 4px"><div style="font-size:38px;margin-bottom:10px">📬</div><div style="font-weight:800;font-size:15px;color:#1a1f2e;margin-bottom:6px">信寄出去了!</div><div style="font-size:12.5px;color:#8890a3;line-height:1.6">去收 <b style="color:#5b5bd6">{{ authEmail }}</b> 的信,點裡面的連結就登入。<br>沒收到?看一下垃圾信匣。</div></div>
+          </sc-if>
+          <button onclick="{{ onSkipLogin }}" style="width:100%;margin-top:14px;border:0;background:none;color:#aab0c0;font:600 12px 'Noto Sans TC';cursor:pointer;padding:6px">先略過 · 用本機資料試玩</button>
         </div>
       </div>
     </sc-if>
