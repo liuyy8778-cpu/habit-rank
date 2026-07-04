@@ -3689,6 +3689,13 @@
                     <span style="font-size:12px;color:#8890a3">前</span>
                   </div>
                 </sc-if>
+                <sc-if value="{{ h.rejected }}">
+                  <div style="background:#fdf3f3;border:1px solid #f0d8d8;border-radius:14px;padding:12px 14px;margin-bottom:10px">
+                    <div style="font-weight:700;font-size:13px;color:#c05a5a;margin-bottom:2px">這筆被退回了</div>
+                    <div style="font-size:11.5px;color:#94856a;line-height:1.5">如果你真的有做到,可以請爸媽再看一次;或直接重打。</div>
+                    <sc-if value="{{ h.canAppeal }}"><button onclick="{{ h.onAppeal }}" style="width:100%;margin-top:10px;border:1.5px solid #d9dcff;background:#fff;border-radius:12px;padding:11px;color:#5b5bd6;font:700 13.5px 'Noto Sans TC';cursor:pointer">🙋 我真的有做到,請再看一次</button></sc-if>
+                  </div>
+                </sc-if>
                 <sc-if value="{{ h.idle }}" hint-placeholder-val="{{ true }}">
                   <div style="display:flex;gap:9px">
                     <button onclick="{{ h.onDone }}" style="flex:1;border:0;border-radius:15px;padding:14px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 15px 'Noto Sans TC';cursor:pointer;box-shadow:0 8px 16px -6px rgba(91,91,214,.55);transition:transform .12s" style-active="transform:scale(.96)">我做到了 · +{{ h.reward }}幣</button>

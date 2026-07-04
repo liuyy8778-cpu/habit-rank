@@ -497,6 +497,18 @@ class Component extends DCLogic {
     }
   }
   _queueDelete(id) { this.setState(st => ({ pendingDeletes: (st.pendingDeletes || []).indexOf(id) >= 0 ? st.pendingDeletes : [...(st.pendingDeletes || []), id] })); }
+  // #2 第二波:孩子申訴「我真的有做到」→ append 一筆 pending(appeal)回家長複審。
+  // 通過→更正(+1、補金幣/XP);再退→維持 −5(每天最新事件模型,不額外扣)
+  appealReject(behaviorId) {
+    this.setState(st => {
+      const day = st.lastDate, r = todayEventOf(st.checkinEvents, behaviorId, day);
+      if (!r || r.verdict !== 'rejected' || r.honest || r.appeal) return null;   // 只有「非申訴的退回」可申訴一次
+      const ev = { id: behaviorId + '-' + day + '-appeal' + Date.now(), behaviorId, label: r.label, icon: r.icon, kind: r.kind,
+        coin: r.coin, xp: r.xp, honest: false, missReason: null, appeal: true, latencyMin: (typeof r.latencyMin === 'number' ? r.latencyMin : null),
+        ts: Date.now(), date: day, verdict: 'pending' };
+      return { checkinEvents: [...st.checkinEvents, ev] };
+    });
+  }
   // 家長誠實回報今天有沒有做到自己的承諾(小孩看得到)
   togglePledge(id) { this.setState(st => { const k = id + '::' + (st.lastDate || ymd(new Date())); return { pledgeDone: { ...st.pledgeDone, [k]: !st.pledgeDone[k] } }; }); }
   redeem(it) { this.setState(st => { if (st.redeemed[it.id] || st.coins < it.cost) return null; return { coins: st.coins - it.cost, redeemed: { ...st.redeemed, [it.id]: true }, fx: { name: it.name, icon: it.icon, gradient: it.gradient, spent: it.cost, left: st.coins - it.cost } }; }); }
@@ -918,12 +930,15 @@ class Component extends DCLogic {
       const tt = (mode !== 'out' && h.times) ? h.times[mode === 'school' ? 'school' : 'home'] : '';
       const desc = h.desc;
       const ev = evOf(h.id), miss = !!(ev && ev.honest), done = !!(ev && !ev.honest), credited = !!(ev && (ev.verdict === 'approved' || ev.verdict === 'auto'));
+      const rejected = !!(ev && ev.verdict === 'rejected' && !ev.honest);
       return { key: h.id, label: h.label, desc, hasTime: !!tt, timeLabel: tt, reward: h.coin, xp: h.xp, icon: h.icon,
         idle: !ev || ev.verdict === 'rejected', submitted: done, miss, canUndo: done && ev.verdict === 'pending',
+        rejected, canAppeal: rejected && !ev.appeal,   // 一次退回只給申訴一次
         subLabel: credited ? '已確認入帳 ✓' : '已送去給爸媽確認',
         subSub: credited ? ('+' + h.coin + '幣 已入帳') : ('+' + h.coin + '幣 待入帳'),
         onDone: () => this.submitCheckin({ id: h.id, label: h.label, icon: h.icon, kind: 'habit', coin: h.coin, xp: h.xp, honestyEligible: h.honestyEligible }),
-        onMiss: () => this.markMiss({ id: h.id, label: h.label, icon: h.icon, kind: 'habit' }) }; });
+        onMiss: () => this.markMiss({ id: h.id, label: h.label, icon: h.icon, kind: 'habit' }),
+        onAppeal: () => this.appealReject(h.id) }; });
     const rowFor = (o, sub) => { const ev = evOf(o.id), pending = !!(ev && !ev.honest && ev.verdict === 'pending'), done = !!(ev && !ev.honest && (ev.verdict === 'approved' || ev.verdict === 'auto'));
       return { id: o.id, icon: o.icon, label: o.label, sub,
         rewardLabel: pending ? '待確認' : (done ? '已入帳 ✓' : ('+' + o.xp + 'XP · ' + o.coin + '幣')),
@@ -1022,7 +1037,7 @@ class Component extends DCLogic {
     const nowMs = Date.now();
     const pendingEvents = (S.checkinEvents || []).filter(e => e.verdict === 'pending');
     const pItems = pendingEvents.map(e => ({ id: e.id, label: e.label, reward: e.coin, icon: e.icon,
-      note: (e.kind === 'habit' ? '關鍵習慣' : '每日任務') + (e.honest ? ' · 誠實回報' : ''), wait: true, ok: false, no: false,
+      note: (e.kind === 'habit' ? '關鍵習慣' : '每日任務') + (e.honest ? ' · 誠實回報' : '') + (e.appeal ? ' · 🙋 申訴,請再看' : ''), wait: true, ok: false, no: false,
       onOk: () => this.confirmCheckin(e.id, true), onNo: () => this.askReject(e.id) }));   // #2:退回走二次確認
     const pWait = pItems.length;
     // #2:今天被退回的項目 → 家長可「撤回退回(看錯了)」。看「該行為當天最新事件」是否 rejected(更正後最新變 approved → 自動消失)
