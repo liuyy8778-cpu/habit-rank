@@ -158,8 +158,34 @@ function nextCkptLevel(prevLevel, T, rate30) {
 }
 // 滾動 30 天達成率(升級專用,永不用於降級)
 function achieveRate30(events, bid, today) { return achieveRate(events, bid, today, 30); }
+// #3:打卡延遲(分鐘)= 現在時刻 − 該習慣今日目標時間;+ 表示晚、− 表示提早;無目標時間回 null
+function latencyOf(behaviorId, mode) {
+  const lib = LIB.find(x => x.id === behaviorId);
+  if (!lib || !lib.times || mode === 'out') return null;
+  const tt = lib.times[mode === 'school' ? 'school' : 'home'];
+  if (!tt) return null;
+  const p = tt.split(':'), target = (+p[0]) * 60 + (+p[1]), d = new Date();
+  return (d.getHours() * 60 + d.getMinutes()) - target;
+}
+
+// ===== #3 反向指標埋點:三個最小事件的聚合(純推導,不開新表)=====
+// 1.打卡延遲(習慣事件的 latencyMin,近30天) 2.session 停留(session 事件,近14天) 3.退回後隔天打卡率(近30天)
+function dataProbe(events, today) {
+  const evs = events || [];
+  let latSum = 0, latN = 0, sesSum = 0, sesN = 0;
+  evs.forEach(e => {
+    if (e.behaviorId && typeof e.latencyMin === 'number' && !e.honest && e.verdict !== 'rejected' && dayGap(e.date, today) <= 30) { latSum += e.latencyMin; latN++; }
+    if (e.type === 'session' && typeof e.durationSec === 'number' && dayGap(e.date, today) <= 14) { sesSum += e.durationSec; sesN++; }
+  });
+  // 退回後隔天回來打卡率:找「當天最新事件仍為 rejected」的 (行為,日),看隔天有沒有回來
+  const rejDays = {};
+  evs.forEach(e => { if (e.behaviorId && e.date && dayGap(e.date, today) <= 30) { const l = todayEventOf(evs, e.behaviorId, e.date); if (l && l.verdict === 'rejected') rejDays[e.behaviorId + '|' + e.date] = true; } });
+  let rejN = 0, recov = 0;
+  Object.keys(rejDays).forEach(k => { const i = k.indexOf('|'), bid = k.slice(0, i), date = k.slice(i + 1); rejN++; const nev = todayEventOf(evs, bid, dateMinus(date, -1)); if (nev && nev.verdict !== 'rejected') recov++; });
+  return { latAvg: latN ? Math.round(latSum / latN) : null, latN, sesAvg: sesN ? Math.round(sesSum / sesN) : null, sesN, recovRate: rejN ? Math.round(recov / rejN * 100) : null, rejN };
+}
 // 除錯/測試用:純函式暴露到 window(唯讀,無副作用)
-if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap };
+if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe };
 
 // ===== B6:家長週報 =====
 // 規則式(不需 LLM)從 checkinEvents 近 7 天算出數據 + 一句「對話起點」。
@@ -316,7 +342,7 @@ class Component extends DCLogic {
       // 依信任等級決定要不要家長確認:0=每次確認;1=30% 抽查、其餘即時入帳;2=畢業自主即時入帳
       const level = trustLiveLevel(st.checkinEvents, b.id, day);   // #2:等級由事件推導
       const instant = level >= 2 || (level === 1 && Math.random() >= CONFIG.spotCheckRate);
-      const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: b.coin, xp, honest: false, ts: Date.now(), date: day, verdict: instant ? 'approved' : 'pending' };
+      const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: b.coin, xp, honest: false, latencyMin: latencyOf(b.id, st.dayMode), ts: Date.now(), date: day, verdict: instant ? 'approved' : 'pending' };
       return instant ? { checkinEvents: [...rest, ev], xp: st.xp - refund + xp, coins: st.coins + b.coin } : { checkinEvents: [...rest, ev], xp: st.xp - refund };
     });
   }
@@ -446,7 +472,24 @@ class Component extends DCLogic {
     const merged = saved ? { ...this.state, ...saved } : { ...this.state };
     this.setState(this.autoApprove(this.rollover(merged, ymd(new Date()))));
     this.initSupabase();
+    // #3:session 停留埋點 —— app 被切到背景/關閉時記一筆停留秒數(append-only 事件)
+    this._sessionStart = Date.now();
+    if (typeof document !== 'undefined') {
+      this._visHandler = () => {
+        if (document.visibilityState === 'hidden') { this.recordSession(); this._sessionStart = null; }
+        else if (document.visibilityState === 'visible' && !this._sessionStart) { this._sessionStart = Date.now(); }
+      };
+      document.addEventListener('visibilitychange', this._visHandler);
+    }
   }
+  recordSession() {
+    if (!this._sessionStart) return;
+    const durationSec = Math.round((Date.now() - this._sessionStart) / 1000);
+    if (durationSec < 5) return;                                  // 忽略太短的雜訊
+    const day = this.state.lastDate || ymd(new Date());
+    this.setState(st => ({ checkinEvents: [...(st.checkinEvents || []), { type: 'session', date: day, ts: Date.now(), durationSec }] }));
+  }
+  componentWillUnmount() { try { this.recordSession(); if (this._visHandler) document.removeEventListener('visibilitychange', this._visHandler); } catch (e) {} }
   componentDidUpdate() {
     try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, retroOpen,
       authReady, session, authEmail, authSent, authError, supaOff, guestMode, syncStatus,
@@ -571,7 +614,7 @@ class Component extends DCLogic {
   async pushEvents() {
     const kid = this._kidId, fam = this._familyId;
     await this._supa.from('checkin_events').delete().eq('kid_id', kid);
-    const rows = (this.state.checkinEvents || []).filter(e => e.type !== 'trust_checkpoint').map(e => ({ family_id: fam, kid_id: kid, behavior_id: e.behaviorId,
+    const rows = (this.state.checkinEvents || []).filter(e => e.behaviorId && e.type !== 'trust_checkpoint' && e.type !== 'session').map(e => ({ family_id: fam, kid_id: kid, behavior_id: e.behaviorId,
       kind: e.kind, coin: e.coin || 0, xp: e.xp || 0, honest: !!e.honest, miss_reason: e.missReason || null,
       verdict: e.verdict, date: e.date, ts: e.ts ? new Date(e.ts).toISOString() : new Date().toISOString() }));
     if (rows.length) { const { error } = await this._supa.from('checkin_events').insert(rows); if (error) throw error; }
@@ -872,6 +915,7 @@ class Component extends DCLogic {
     });
     const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
     const wr = weeklyReport(S.checkinEvents, today, S.taskOn); // B6:真實週報 + 一句話
+    const probe = dataProbe(S.checkinEvents, today); // #3:反向指標數據自查
     const pRewards = itemsAll.map(it => { const on = !!S.listed[it.id]; return { id: it.id, name: it.name, cost: it.cost + '', iconHref: it.icon, gradient: grads[it.g], onToggle: () => this.toggleList(it.id), tgLabel: on ? '上架中' : '已下架', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
     // 家長任務管理:任務庫全部列出。鎖定的顯示解鎖段位,家長可提前解鎖(家長最大)
     const pTasks = LIB.map(t => { const on = !!S.taskOn[t.id], locked = !available(t);
@@ -927,6 +971,10 @@ class Component extends DCLogic {
       hasDailyTasks: dailyTasks.length > 0, noDailyTasks: dailyTasks.length === 0, pickedLabel: pickedCount + ' 個',
       onExport: () => this.exportBackup(),
       onReset: () => this.resetAll(),
+      // #3:數據自查(開發用,只給家長看)
+      probeLatency: probe.latN ? ((probe.latAvg >= 0 ? '晚 ' + probe.latAvg : '早 ' + (-probe.latAvg)) + ' 分 · ' + probe.latN + ' 筆') : '尚無資料',
+      probeSession: probe.sesN ? (probe.sesAvg + ' 秒 · ' + probe.sesN + ' 次') : '尚無資料',
+      probeRecovery: probe.rejN ? (probe.recovRate + '% · ' + probe.rejN + ' 次退回') : '尚無退回',
       onAddHabit: () => this.setState({ mode: 'parent', pTab: 'rewards' }),
       ...todayRank,
       dayMode: mode,
