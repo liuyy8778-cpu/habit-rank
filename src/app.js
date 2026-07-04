@@ -195,7 +195,7 @@ class Component extends DCLogic {
     lastDate: null, dayMode: 'home',
     coins: 0, streak: 0, xp: 0, protects: 0, honest: 0,
     habit: {}, checked: {},
-    taskOn: { k1: true, k2: true, ld1: true, bd1: true }, manualUnlock: {},
+    taskOn: { k1: true, k2: true, sc3: true, ld1: true, bd1: true, em1: true }, manualUnlock: {},
     trustLevel: {}, graduatedAt: {}, gradModal: null, graduationStage: 0, retroOpen: false,
     covenant: {
       version: 1,
@@ -588,9 +588,8 @@ class Component extends DCLogic {
         boxIcon: done ? check : (pending ? clock : ''),
         onToggle: () => this.submitCheckin({ id: o.id, label: o.label, icon: o.icon, kind: o.type, coin: o.coin, xp: o.xp, honestyEligible: o.honestyEligible }) }; };
     const dailyTasks = dayPool.filter(t => t.type === 'task').map(t => rowFor(t, t.sub));
-    // 任務分頁:把今天的關鍵習慣 + 每日任務合成一份可點清單
-    const habitRows = dayPool.filter(t => t.type === 'habit').map(h => rowFor(h, '關鍵習慣'));
-    const allToday = [...habitRows, ...dailyTasks];
+    // 任務分頁 = 自己挑的任務池(只有任務,關鍵習慣留在今日頁)。picked=今天已挑(送出未退回)的數量
+    const pickedCount = dayPool.filter(t => t.type === 'task').filter(t => { const ev = evOf(t.id); return ev && !ev.honest && ev.verdict !== 'rejected'; }).length;
     // ===== B2:彈性連續 —— 滾動 7 天,而非單一「連幾天」數字(防 what-the-hell effect)=====
     const daySuccess = (day) => { const ah = LIB.filter(t => t.type === 'habit' && S.taskOn[t.id]); return ah.length > 0 && ah.every(h => { const ev = todayEventOf(S.checkinEvents, h.id, day); return ev && !ev.honest && ev.verdict !== 'rejected'; }); };
     const dayHadActivity = (day) => (S.checkinEvents || []).some(e => e.date === day);
@@ -717,7 +716,8 @@ class Component extends DCLogic {
       goToday: () => this.kGo('today'), goTasks: () => this.kGo('tasks'), goRank: () => this.kGo('rank'), goShop: () => this.kGo('shop'), goRecord: () => this.kGo('record'),
       pgToday: K === 'today', pgTasks: K === 'tasks', pgRank: K === 'rank', pgShop: K === 'shop', pgRecord: K === 'record',
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
-      habits, dailyTasks, allToday, jr, shop, rec, appVersion: APP_VERSION,
+      habits, dailyTasks, jr, shop, rec, appVersion: APP_VERSION,
+      hasDailyTasks: dailyTasks.length > 0, noDailyTasks: dailyTasks.length === 0, pickedLabel: pickedCount + ' 個',
       onExport: () => this.exportBackup(),
       onReset: () => this.resetAll(),
       onAddHabit: () => this.setState({ mode: 'parent', pTab: 'rewards' }),

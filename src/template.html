@@ -3706,16 +3706,9 @@
                 </sc-if>
               </div>
             </sc-for>
-            <div style="display:flex;align-items:baseline;justify-content:space-between;margin:22px 4px 12px"><div style="font-weight:900;font-size:15px;color:#1a1f2e">每日小任務</div><div style="font-size:11.5px;color:#8890a3">做完加金幣與 XP</div></div>
-            <div style="display:flex;flex-direction:column;gap:9px">
-              <sc-for list="{{ dailyTasks }}" as="t" hint-placeholder-count="3">
-                <button onclick="{{ t.onToggle }}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:13px 14px;cursor:pointer;transition:transform .1s" style-active="transform:scale(.98)">
-                  <span style="width:26px;height:26px;border-radius:9px;border:2px solid {{ t.boxBorder }};background:{{ t.boxBg }};display:flex;align-items:center;justify-content:center;color:#fff;flex:none">{{ t.boxIcon }}</span>
-                  <span style="width:30px;height:30px;border-radius:9px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:18px;height:18px"><use href="#{{ t.icon }}"></use></svg></span>
-                  <span style="flex:1;min-width:0"><span style="display:block;font-weight:700;font-size:13.5px;color:#1a1f2e;line-height:1.35">{{ t.label }}</span><span style="display:block;font-size:11px;color:#8890a3;margin-top:1px">{{ t.sub }}</span></span>
-                  <span style="font:700 12px 'Space Grotesk';color:#cf9a2f;white-space:nowrap">{{ t.rewardLabel }}</span>
-                </button>
-              </sc-for>
+            <div style="display:flex;align-items:center;gap:8px;background:#eef0ff;border-radius:14px;padding:12px 14px;margin:18px 2px 6px">
+              <span style="font-size:16px">🎯</span>
+              <span style="flex:1;font-size:12px;color:#4a4ac2;line-height:1.45">想多賺一點?到下面「<b>任務</b>」分頁,自己挑今天想做的挑戰。</span>
             </div>
             <!-- B3:家庭公約(小孩端)——看家長承諾 + 提案改公約 -->
             <div style="margin:26px 0 6px;background:#fbfbfe;border:1px solid rgba(20,25,50,.07);border-radius:20px;padding:16px">
@@ -3751,10 +3744,12 @@
             </div>
           </div>
         </sc-if>
-        <sc-if value="{{ pgTasks }}"><div class="scroll"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 6px">我的習慣</div>
-            <div style="font-size:12.5px;color:#8890a3;margin:0 4px 18px">點一下就能打勾完成，和「今日」同步。</div>
+        <sc-if value="{{ pgTasks }}"><div class="scroll"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 6px">任務池</div>
+            <div style="font-size:12.5px;color:#8890a3;margin:0 4px 14px;line-height:1.5">關鍵習慣在「今日」頁；這裡是<b style="color:#5b5bd6">自己挑</b>的挑戰——今天想多做哪幾個,你自己決定,做完打勾拿獎勵。</div>
+            <sc-if value="{{ hasDailyTasks }}"><div style="font-size:11.5px;color:#8890a3;margin:0 4px 12px">🎯 今天挑了 <b style="color:#5b5bd6">{{ pickedLabel }}</b></div></sc-if>
+            <sc-if value="{{ noDailyTasks }}"><div style="text-align:center;background:#f7f8fc;border-radius:16px;padding:22px 16px;margin-bottom:16px;font-size:12.5px;color:#8890a3;line-height:1.6">目前沒有可挑的任務。<br>家長可到「任務獎勵」開啟更多,或升段位解鎖新挑戰。</div></sc-if>
             <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:16px">
-              <sc-for list="{{ allToday }}" as="a" hint-placeholder-count="5">
+              <sc-for list="{{ dailyTasks }}" as="a" hint-placeholder-count="5">
                 <button onclick="{{ a.onToggle }}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px;cursor:pointer;transition:transform .1s" style-active="transform:scale(.98)">
                   <span style="width:28px;height:28px;border-radius:9px;border:2px solid {{ a.boxBorder }};background:{{ a.boxBg }};display:flex;align-items:center;justify-content:center;color:#fff;flex:none">{{ a.boxIcon }}</span>
                   <span style="width:34px;height:34px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#{{ a.icon }}"></use></svg></span>
@@ -3763,7 +3758,7 @@
                 </button>
               </sc-for>
             </div>
-            <button onclick="{{ onAddHabit }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:15px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.98)">+ 新增 / 管理習慣</button></div></sc-if>
+            <button onclick="{{ onAddHabit }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:15px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.98)">＋ 開啟更多任務(家長)</button></div></sc-if>
         <sc-if value="{{ pgRank }}"><div class="scroll"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 16px">段位之路</div>
             <!-- B1:畢業里程(關鍵習慣全畢業後出現)——鷹架不是牢籠 -->
             <sc-if value="{{ gradMilestoneShow }}">
