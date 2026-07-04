@@ -707,13 +707,25 @@ class Component extends DCLogic {
   // 重新來過:清掉全部進度回到全新狀態(測試用)。清 localStorage 後重載,保證乾淨。
   resetAll() {
     if (typeof window === 'undefined') return;
-    const ok = window.confirm('確定要「重新來過」嗎?\n\n這會清掉所有金幣、XP、段位、打卡紀錄、公約簽名,回到全新狀態,無法復原。\n(建議先「匯出備份」再重置)');
-    if (!ok) return;
-    try {
-      localStorage.removeItem('habitRank');
-      localStorage.removeItem('habitRank_backup_v1');
-    } catch (e) {}
-    try { window.location.reload(); } catch (e) {}
+    const loggedIn = !!(this._supa && this._cloudReady && this._kidId);
+    const msg = loggedIn
+      ? '確定要「重新來過」嗎?\n\n這會清空「目前這個小孩」在雲端的所有進度(金幣、XP、段位、打卡、信任),連同本機資料一起歸零,無法復原。\n(建議先「匯出備份」)'
+      : '確定要「重新來過」嗎?\n\n這會清掉本機所有金幣、XP、段位、打卡紀錄、簽名,回到全新狀態,無法復原。\n(建議先「匯出備份」)';
+    if (!window.confirm(msg)) return;
+    const finish = () => {
+      try { localStorage.removeItem('habitRank'); localStorage.removeItem('habitRank_backup_v1'); localStorage.removeItem('habitRank_pin'); localStorage.removeItem('habitRank_kid'); } catch (e) {}
+      try { window.location.reload(); } catch (e) {}
+    };
+    if (loggedIn) { this._resetCloud().then(finish, finish); } else { finish(); } // 先清雲端再重載;失敗也重載(至少清本機)
+  }
+  // 清空目前小孩的雲端資料 + 家庭公約,讓重載後不會又被雲端蓋回舊資料
+  async _resetCloud() {
+    const kid = this._kidId, fam = this._familyId;
+    this._cloudReady = false;  // 停止背景鏡像,避免清完又被推回
+    try { await this._supa.from('checkin_events').delete().eq('kid_id', kid); } catch (e) {}
+    try { await this._supa.from('trust_levels').delete().eq('kid_id', kid); } catch (e) {}
+    try { await this._supa.from('kids').update({ coins: 0, xp: 0, streak: 0, graduation_stage: 0, task_on: { k1: true, k2: true, sc3: true, ld1: true, bd1: true, em1: true }, manual_unlock: {} }).eq('id', kid); } catch (e) {}
+    try { await this._supa.from('covenant').delete().eq('family_id', fam); } catch (e) {}
   }
   // 衝動延遲:練習「先暫停」的肌肉
   startPause() { this.setState({ pausing: true }); }
