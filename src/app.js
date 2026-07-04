@@ -435,6 +435,21 @@ class Component extends DCLogic {
     // 任務分頁:把今天的關鍵習慣 + 每日任務合成一份可點清單
     const habitRows = dayPool.filter(t => t.type === 'habit').map(h => rowFor(h, '關鍵習慣'));
     const allToday = [...habitRows, ...dailyTasks];
+    // ===== B2:彈性連續 —— 滾動 7 天,而非單一「連幾天」數字(防 what-the-hell effect)=====
+    const daySuccess = (day) => { const ah = LIB.filter(t => t.type === 'habit' && S.taskOn[t.id]); return ah.length > 0 && ah.every(h => { const ev = todayEventOf(S.checkinEvents, h.id, day); return ev && !ev.honest && ev.verdict !== 'rejected'; }); };
+    const dayHadActivity = (day) => (S.checkinEvents || []).some(e => e.date === day);
+    const week7 = [];
+    for (let d = 6; d >= 0; d--) {
+      const day = dateMinus(today, d), isToday = d === 0, ok = daySuccess(day);
+      let st2 = ok ? 'done' : (dayHadActivity(day) ? 'miss' : 'none');
+      if (isToday && !ok) st2 = 'today';
+      week7.push({ label: WEEKDAY_CN[parseYmd(day).getDay()].slice(1),
+        bg: st2 === 'done' ? ACC : (st2 === 'miss' ? '#e9ecf3' : (st2 === 'today' ? '#fff' : '#f2f3f7')),
+        ring: st2 === 'today' ? '0 0 0 2px #5b5bd6 inset' : 'none',
+        mark: st2 === 'done' ? check : '', isToday });
+    }
+    const week7Done = week7.filter(c => c.mark).length;
+    const week7Good = week7Done >= 6; // 滾動 7 天達成 ≥6 = 好狀態
     const jrDefs = [['見習','完全託管，先把節奏建立起來',0,'解鎖每日任務'],['銅段','解鎖 30 分自選時段',300,'自選時段 ×1'],['銀段','週末彈性 +1 小時',800,'週末彈性 +1hr'],['金段','自己設定交機時間',1800,'自訂交機時間'],['鑽石','完全自主，家長只看週報',3500,'完全自主'],['傳說','自律大師 · 名人堂',6000,'名人堂徽章']];
     const sel = S.jrSel;
     // 今日分頁的段位進度卡:全部依目前 XP 動態計算
@@ -519,6 +534,7 @@ class Component extends DCLogic {
     return {
       isKid, isParent: S.mode === 'parent', toKid: () => this.toMode('kid'), toParent: () => this.toMode('parent'),
       coins: S.coins, streak: S.streak, xp: S.xp, protects: S.protects, honest: S.honest, honestPct: Math.round(S.honest / 3 * 100) + '%',
+      week7, week7Done: week7Done + '/7', week7Good, week7Hint: week7Good ? '狀態很穩,繼續保持' : '斷一天沒關係——看的是這 7 天,不是完美',
       goToday: () => this.kGo('today'), goTasks: () => this.kGo('tasks'), goRank: () => this.kGo('rank'), goShop: () => this.kGo('shop'), goRecord: () => this.kGo('record'),
       pgToday: K === 'today', pgTasks: K === 'tasks', pgRank: K === 'rank', pgShop: K === 'shop', pgRecord: K === 'record',
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
