@@ -573,9 +573,9 @@ class Component extends DCLogic {
     const evOf = (id) => todayEventOf(S.checkinEvents, id, today);
     const habits = dayPool.filter(t => t.type === 'habit').map(h => {
       const tt = (mode !== 'out' && h.times) ? h.times[mode === 'school' ? 'school' : 'home'] : '';
-      const desc = h.desc + (tt ? '　⏰ 今天目標 ' + tt + ' 前' : '');
+      const desc = h.desc;
       const ev = evOf(h.id), miss = !!(ev && ev.honest), done = !!(ev && !ev.honest), credited = !!(ev && (ev.verdict === 'approved' || ev.verdict === 'auto'));
-      return { key: h.id, label: h.label, desc, reward: h.coin, xp: h.xp, icon: h.icon,
+      return { key: h.id, label: h.label, desc, hasTime: !!tt, timeLabel: tt, reward: h.coin, xp: h.xp, icon: h.icon,
         idle: !ev || ev.verdict === 'rejected', submitted: done, miss, canUndo: done && ev.verdict === 'pending',
         subLabel: credited ? '已確認入帳 ✓' : '已送去給爸媽確認',
         subSub: credited ? ('+' + h.coin + '幣 已入帳') : ('+' + h.coin + '幣 待入帳'),
@@ -727,7 +727,7 @@ class Component extends DCLogic {
       dmHomeBg: mode === 'home' ? GRAD : '#eef0f6', dmHomeCol: mode === 'home' ? '#fff' : '#8890a3',
       dmSchoolBg: mode === 'school' ? GRAD : '#eef0f6', dmSchoolCol: mode === 'school' ? '#fff' : '#8890a3',
       dmOutBg: mode === 'out' ? GRAD : '#eef0f6', dmOutCol: mode === 'out' ? '#fff' : '#8890a3',
-      dayHint: mode === 'out' ? '🚗 出門日 · 只顯示到哪都能做的任務，連續不中斷' : (mode === 'school' ? '📚 上學日 · 晚到家也 OK，交機時間順延' : '☀️ 在家日 · 完整任務、寬鬆時間'),
+      dayHint: mode === 'out' ? '🚗 出門日 · 只顯示到哪都能做的任務，連續不中斷' : (mode === 'school' ? '📚 上學日 · 晚到家也 OK，交機時間順延' : '☀️ 休息日 · 完整任務、寬鬆時間'),
       trustLevel: trust.level, trustDesc: trust.desc, trustIcon: trust.icon, trustColor: trust.color, trustBg: trust.bg, trustLines,
       gradShow: gradCert.show, gradName: gradCert.name, gradIcon: gradCert.icon, gradDate: gradCert.date, gradDays: gradCert.days, onCloseGrad: gradCert.onClose,
       // B1:畢業里程 + 歷程回顧
