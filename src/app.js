@@ -52,7 +52,7 @@ const TRUST_NAMES = ['每次確認', '隨機抽查', '已畢業 · 自主'];
 
 // ===== 資料遷移:localStorage schema 版本控管 =====
 // 每次啟動檢查版本,舊資料無損升級並先備份到 backup_v1。
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 function migrateToV2(s) {
   if (!s || s.schemaVersion === SCHEMA_VERSION) return s;
   let v = s.schemaVersion || 1;
@@ -89,6 +89,15 @@ function migrateToV2(s) {
       m.checkinEvents = [...(m.checkinEvents || []), { type: 'trust_checkpoint', date: ymd(new Date()), ts: nowTs, scores }];
     }
     v = 6;                                                       // trustLevel 欄位保留不刪(防回滾),但新程式不再讀它
+  }
+  if (v < 7) {                                                   // #4:proposals/pledges id 正規化成 uuid(才塞得進雲端),並改寫 pledgeDone key
+    m.covenant = { ...(m.covenant || {}) };
+    const remap = {};
+    m.covenant.pledges = (m.covenant.pledges || []).map(pl => { const nid = newId(); if (pl && pl.id) remap[pl.id] = nid; return { ...pl, id: nid }; });
+    m.covenant.proposals = (m.covenant.proposals || []).map(pp => ({ ...pp, id: newId() }));
+    if (m.pledgeDone) { const nd = {}; Object.keys(m.pledgeDone).forEach(k => { const i = k.indexOf('::'); if (i < 0) { nd[k] = m.pledgeDone[k]; return; } const pid = k.slice(0, i), rest = k.slice(i); nd[(remap[pid] || pid) + rest] = m.pledgeDone[k]; }); m.pledgeDone = nd; }
+    if (!Array.isArray(m.pendingDeletes)) m.pendingDeletes = [];
+    v = 7;
   }
   m.schemaVersion = SCHEMA_VERSION;
   return m;
@@ -158,6 +167,8 @@ function nextCkptLevel(prevLevel, T, rate30) {
 }
 // 滾動 30 天達成率(升級專用,永不用於降級)
 function achieveRate30(events, bid, today) { return achieveRate(events, bid, today, 30); }
+// #4:產生 uuid(塞得進 Supabase uuid 主鍵欄);crypto.randomUUID 優先,退而求其次
+function newId() { try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {} return 'id-' + Date.now() + '-' + Math.round(Math.random() * 1e9); }
 // #3:打卡延遲(分鐘)= 現在時刻 − 該習慣今日目標時間;+ 表示晚、− 表示提早;無目標時間回 null
 function latencyOf(behaviorId, mode) {
   const lib = LIB.find(x => x.id === behaviorId);
@@ -284,7 +295,7 @@ class Component extends DCLogic {
       history: [],     // B3:修訂紀錄(who/when/改了什麼)
     },
     newTerm: '', sealing: null, missAsk: null,
-    propText: '', propReason: '', newPledge: '', pledgeDone: {}, proposeOpen: false,
+    propText: '', propReason: '', newPledge: '', pledgeDone: {}, proposeOpen: false, pendingDeletes: [],
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
@@ -442,7 +453,7 @@ class Component extends DCLogic {
   submitProposal() {
     this.setState(st => {
       const text = (st.propText || '').trim(); if (!text) return { proposeOpen: false };
-      const p = { id: 'p' + Date.now(), text, reason: (st.propReason || '').trim(), at: ymd(new Date()), status: 'pending' };
+      const p = { id: newId(), text, reason: (st.propReason || '').trim(), at: ymd(new Date()), status: 'pending' };
       return { propText: '', propReason: '', proposeOpen: false, covenant: { ...st.covenant, proposals: [...(st.covenant.proposals || []), p] } };
     });
   }
@@ -458,8 +469,20 @@ class Component extends DCLogic {
     });
   }
   setNewPledge(e) { const v = e.target.value; this.setState({ newPledge: v }); }
-  addPledge() { this.setState(st => { const t = (st.newPledge || '').trim(); if (!t) return null; return { newPledge: '', covenant: { ...st.covenant, pledges: [...(st.covenant.pledges || []), { id: 'pl' + Date.now(), text: t }] } }; }); }
-  delPledge(id) { this.setState(st => ({ covenant: { ...st.covenant, pledges: (st.covenant.pledges || []).filter(p => p.id !== id) } })); }
+  addPledge() { this.setState(st => { const t = (st.newPledge || '').trim(); if (!t) return null; return { newPledge: '', covenant: { ...st.covenant, pledges: [...(st.covenant.pledges || []), { id: newId(), text: t }] } }; }); }
+  // #4:刪承諾 → 本機移除 + 清該承諾的 pledgeDone;登入則試刪雲端,失敗記 pendingDeletes 由 cloudSave 重試(防復活)
+  delPledge(id) {
+    this.setState(st => {
+      const pledgeDone = { ...st.pledgeDone };
+      Object.keys(pledgeDone).forEach(k => { if (k.indexOf(id + '::') === 0) delete pledgeDone[k]; });
+      return { covenant: { ...st.covenant, pledges: (st.covenant.pledges || []).filter(p => p.id !== id) }, pledgeDone };
+    });
+    if (this._supa && this.state.session) {
+      Promise.resolve().then(() => this._supa.from('pledges').delete().eq('id', id))
+        .then(r => { if (r && r.error) this._queueDelete(id); }).catch(() => this._queueDelete(id));
+    }
+  }
+  _queueDelete(id) { this.setState(st => ({ pendingDeletes: (st.pendingDeletes || []).indexOf(id) >= 0 ? st.pendingDeletes : [...(st.pendingDeletes || []), id] })); }
   // 家長誠實回報今天有沒有做到自己的承諾(小孩看得到)
   togglePledge(id) { this.setState(st => { const k = id + '::' + (st.lastDate || ymd(new Date())); return { pledgeDone: { ...st.pledgeDone, [k]: !st.pledgeDone[k] } }; }); }
   redeem(it) { this.setState(st => { if (st.redeemed[it.id] || st.coins < it.cost) return null; return { coins: st.coins - it.cost, redeemed: { ...st.redeemed, [it.id]: true }, fx: { name: it.name, icon: it.icon, gradient: it.gradient, spent: it.cost, left: st.coins - it.cost } }; }); }
@@ -532,7 +555,8 @@ class Component extends DCLogic {
     const S = this.state;
     return JSON.stringify({ c: S.coins, x: S.xp, s: S.streak, g: S.graduationStage, t: S.taskOn, m: S.manualUnlock,
       ev: S.checkinEvents, ga: S.graduatedAt,   // #2:信任由 checkinEvents(含 checkpoint)推導,不再單獨 hash trustLevel
-      cov: { v: S.covenant.version, t: S.covenant.terms, s: S.covenant.schedules, sig: S.covenant.signatures, h: S.covenant.history } });
+      cov: { v: S.covenant.version, t: S.covenant.terms, s: S.covenant.schedules, sig: S.covenant.signatures, h: S.covenant.history },
+      pr: S.covenant.proposals, pl: S.covenant.pledges, pdn: S.pledgeDone, pdel: S.pendingDeletes });   // #4
   }
   async cloudInit() {
     if (!this._supa || this._cloudReady || this._cloudBusy) return;
@@ -572,6 +596,7 @@ class Component extends DCLogic {
     if (error) throw error;
     this._kidId = kid.id;
     await this.pushEvents(); await this.pushTrust(); await this.pushCovenant();
+    await this.pushPledges(); await this.pushProposals(); await this.pushPledgeLog();   // #4
     this._lastSyncHash = this.syncHash();
   }
   async cloudLoad(kid) {
@@ -580,8 +605,15 @@ class Component extends DCLogic {
       this._supa.from('checkin_events').select('*').eq('kid_id', kid.id),
       this._supa.from('trust_levels').select('*').eq('kid_id', kid.id),
       this._supa.from('covenant').select('*').eq('family_id', this._familyId).maybeSingle(),
+      this._supa.from('proposals').select('*').eq('kid_id', kid.id),        // #4:提案 per-kid
+      this._supa.from('pledges').select('*').eq('family_id', this._familyId),   // #4:承諾 family 共用
+      this._supa.from('pledge_log').select('*').eq('family_id', this._familyId),
     ]);
     const evs = res[0].data || [], tl = res[1].data || [], cov = res[2].data || null;
+    const cProps = res[3].data || [], cPledges = res[4].data || [], cPlog = res[5].data || [];
+    const proposals = cProps.map(r => ({ id: r.id, text: r.text, reason: r.reason || '', at: r.at ? String(r.at).slice(0, 10) : '', status: r.status || 'pending' }));
+    const pledges = cPledges.map(r => ({ id: r.id, text: r.text }));
+    const pledgeDone = {}; cPlog.forEach(r => { if (r.done) pledgeDone[r.pledge_id + '::' + String(r.date).slice(0, 10)] = true; });
     const checkinEvents = evs.map(r => { const lib = LIB.find(x => x.id === r.behavior_id) || {}; return {
       id: r.behavior_id + '-' + r.date, behaviorId: r.behavior_id, label: lib.label || r.behavior_id, icon: lib.icon || 'i-check',
       kind: r.kind, coin: r.coin, xp: r.xp, honest: !!r.honest, missReason: r.miss_reason || null,
@@ -594,14 +626,15 @@ class Component extends DCLogic {
     this._hydrating = true;
     this.setState(st => {
       const gs = Number.isInteger(kid.graduation_stage) ? kid.graduation_stage : (st.graduationStage || 0);
-      const covenant = cov ? { ...st.covenant, version: cov.version || st.covenant.version,
+      const base = cov ? { version: cov.version || st.covenant.version,
         terms: Array.isArray(cov.terms) ? cov.terms : st.covenant.terms,
         schedules: (cov.schedules && Object.keys(cov.schedules).length) ? cov.schedules : st.covenant.schedules,
         signatures: (cov.signatures && Object.keys(cov.signatures).length) ? cov.signatures : st.covenant.signatures,
-        history: Array.isArray(cov.history) ? cov.history : (st.covenant.history || []) } : st.covenant;
+        history: Array.isArray(cov.history) ? cov.history : (st.covenant.history || []) } : {};
+      const covenant = { ...st.covenant, ...base, proposals, pledges };   // #4:提案/承諾以雲端為準
       return { coins: kid.coins || 0, xp: kid.xp || 0, streak: kid.streak || 0, graduationStage: gs,
         taskOn: (kid.task_on && Object.keys(kid.task_on).length) ? kid.task_on : st.taskOn,
-        manualUnlock: kid.manual_unlock || {}, checkinEvents: [...checkinEvents, ...seeded], graduatedAt, covenant };
+        manualUnlock: kid.manual_unlock || {}, checkinEvents: [...checkinEvents, ...seeded], graduatedAt, covenant, pledgeDone };
     }, () => { this._hydrating = false; this._lastSyncHash = this.syncHash(); });
   }
   async pushKid() {
@@ -635,6 +668,30 @@ class Component extends DCLogic {
       terms: c.terms || [], schedules: c.schedules || {}, signatures: c.signatures || {}, history: c.history || [] }, { onConflict: 'family_id' });
     if (error) throw error;
   }
+  // #4:提案(per-kid)、承諾(family)、承諾打卡(family)
+  async pushProposals() {
+    const props = this.state.covenant.proposals || []; if (!props.length) return;
+    const rows = props.map(p => ({ id: p.id, family_id: this._familyId, kid_id: this._kidId, text: p.text, reason: p.reason || null, status: p.status || 'pending', at: p.at || null }));
+    const { error } = await this._supa.from('proposals').upsert(rows, { onConflict: 'id' }); if (error) throw error;
+  }
+  async pushPledges() {
+    const plgs = this.state.covenant.pledges || []; if (!plgs.length) return;
+    const rows = plgs.map(p => ({ id: p.id, family_id: this._familyId, text: p.text }));
+    const { error } = await this._supa.from('pledges').upsert(rows, { onConflict: 'id' }); if (error) throw error;
+  }
+  async pushPledgeLog() {
+    const pd = this.state.pledgeDone || {};
+    const rows = Object.keys(pd).map(k => { const i = k.indexOf('::'); return { pledge_id: k.slice(0, i), family_id: this._familyId, date: k.slice(i + 2), done: !!pd[k] }; }).filter(r => r.pledge_id);
+    if (!rows.length) return;
+    const { error } = await this._supa.from('pledge_log').upsert(rows, { onConflict: 'pledge_id,date' }); if (error) throw error;
+  }
+  // #4:重試離線刪除的承諾(防復活),成功才移出 pendingDeletes
+  async retryPendingDeletes() {
+    const pd = this.state.pendingDeletes || []; if (!pd.length) return;
+    const stillFail = [];
+    for (const id of pd) { try { const { error } = await this._supa.from('pledges').delete().eq('id', id); if (error) stillFail.push(id); } catch (e) { stillFail.push(id); } }
+    if (stillFail.length !== pd.length) this.setState({ pendingDeletes: stillFail });
+  }
   async cloudSave() {
     if (!this._supa || !this._cloudReady || !this._kidId) return true;
     const h = this.syncHash();
@@ -642,6 +699,8 @@ class Component extends DCLogic {
     try {
       this.setState({ syncStatus: 'syncing' });
       await this.pushKid(); await this.pushTrust(); await this.pushCovenant(); await this.pushEvents();
+      await this.pushPledges(); await this.pushProposals(); await this.pushPledgeLog();   // #4(承諾先於承諾打卡:FK)
+      await this.retryPendingDeletes();
       this._lastSyncHash = h;
       this.setState({ syncStatus: 'ok' });
       return true;
@@ -768,6 +827,8 @@ class Component extends DCLogic {
     try { await this._supa.from('trust_levels').delete().eq('kid_id', kid); } catch (e) {}
     try { await this._supa.from('kids').update({ coins: 0, xp: 0, streak: 0, graduation_stage: 0, task_on: { k1: true, k2: true, sc3: true, ld1: true, bd1: true, em1: true }, manual_unlock: {} }).eq('id', kid); } catch (e) {}
     try { await this._supa.from('covenant').delete().eq('family_id', fam); } catch (e) {}
+    try { await this._supa.from('proposals').delete().eq('kid_id', kid); } catch (e) {}   // #4
+    try { await this._supa.from('pledges').delete().eq('family_id', fam); } catch (e) {}   // pledge_log 連帶 cascade
   }
   // 衝動延遲:練習「先暫停」的肌肉
   startPause() { this.setState({ pausing: true }); }
