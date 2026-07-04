@@ -43,14 +43,16 @@ const CONFIG = {
   promoteMinAchieveRate: 0.6,  // 信任升級的達成率地板(擺爛畢不了業)
   autoApproveHours: 48,        // 待確認超時自動放行(中性日)
   sealHoldMs: 2000,            // 公約蓋章長按毫秒數
-  trustPromoteDays: [14, 21],  // 信任 0→1 需連續誠實 14 天;1→2 需 21 天
+  trustThresholds: [14, 35],   // 信任分數 T 門檻:T≥14→L1、T≥35→L2(天當量)
+  trustGain: 1,                // 誠實達成 ΔT(啟發式,靠 #3 數據校準)
+  trustLiePenalty: 5,          // 說謊被抓 ΔT = −5(可 5 個誠實達成日補回,不整級退回)
   spotCheckRate: 0.3,          // 信任等級 1(抽查)被抽中確認的機率
 };
 const TRUST_NAMES = ['每次確認', '隨機抽查', '已畢業 · 自主'];
 
 // ===== 資料遷移:localStorage schema 版本控管 =====
 // 每次啟動檢查版本,舊資料無損升級並先備份到 backup_v1。
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 function migrateToV2(s) {
   if (!s || s.schemaVersion === SCHEMA_VERSION) return s;
   let v = s.schemaVersion || 1;
@@ -78,6 +80,15 @@ function migrateToV2(s) {
   if (v < 5) {                                                   // B1:畢業階段(0=正常,1=週回顧,2=僅公約,3=已畢業)
     if (typeof m.graduationStage !== 'number') m.graduationStage = 0;
     v = 5;
+  }
+  if (v < 6) {                                                   // #2:信任改由事件推導,舊 trustLevel → 種一筆 checkpoint 當基線
+    const tl = m.trustLevel || {}, scores = {}, thr = [0, 14, 35]; // L0/L1/L2 的 T 基線
+    Object.keys(tl).forEach(bid => { const lv = tl[bid] || 0; scores[bid] = { t: thr[lv] || 0, level: lv }; });
+    if (Object.keys(scores).length) {
+      const nowTs = (typeof Date.now === 'function') ? Date.now() : 1;
+      m.checkinEvents = [...(m.checkinEvents || []), { type: 'trust_checkpoint', date: ymd(new Date()), ts: nowTs, scores }];
+    }
+    v = 6;                                                       // trustLevel 欄位保留不刪(防回滾),但新程式不再讀它
   }
   m.schemaVersion = SCHEMA_VERSION;
   return m;
@@ -109,6 +120,46 @@ function achieveRate(events, id, today, windowDays) {
   }
   return report ? done / report : 0;
 }
+
+// ===== #2 信任重設計(方案 A):信任分數 T 由 append-only 事件流「推導」,不存可變欄位 =====
+// 一筆事件對 T 的貢獻:誠實達成 +1 / 誠實回報失敗 0 / 說謊被抓(rejected) −5 / pending 0
+function eventDelta(ev) {
+  if (!ev) return 0;
+  if (ev.verdict === 'rejected') return -CONFIG.trustLiePenalty;        // 說謊被抓 −5
+  if (ev.honest) return 0;                                              // 誠實回報失敗:不扣分
+  if (ev.verdict === 'approved' || ev.verdict === 'auto') return CONFIG.trustGain; // 誠實達成 +1
+  return 0;                                                            // pending:未計
+}
+// T→等級的上限(純由 T)。降級用它;升級另需達成率地板。
+function tCap(T) { return T >= CONFIG.trustThresholds[1] ? 2 : (T >= CONFIG.trustThresholds[0] ? 1 : 0); }
+// 取某行為最近的 checkpoint(以 ts 最大者為準;checkpoint 事件用 scores map,無 behaviorId)
+function latestCkpt(events, bid) {
+  let best = null;
+  (events || []).forEach(e => { if (e.type === 'trust_checkpoint' && e.scores && e.scores[bid] != null && (!best || e.ts > best.ts)) best = e; });
+  return best ? { t: best.scores[bid].t, level: best.scores[bid].level, ts: best.ts } : { t: 0, level: 0, ts: 0 };
+}
+// 信任分數 T:最近 checkpoint 的 t + 其後(ts 更新)每天最新事件的 ΔT,夾在 [0,∞)
+function trustScoreOf(events, bid, today) {
+  const cp = latestCkpt(events, bid), byDay = {};
+  (events || []).forEach(e => { if (e.behaviorId === bid && e.type !== 'trust_checkpoint' && e.ts > cp.ts && e.date <= today) byDay[e.date] = e; });
+  let t = cp.t; Object.keys(byDay).forEach(d => { t += eventDelta(byDay[d]); });
+  return Math.max(0, t);
+}
+// 目前等級 = min(checkpoint 等級, T 上限)。升級只在 rollover 過地板才發生,故 live 只會「往下修」不會偷升。
+function trustLiveLevel(events, bid, today) {
+  const cp = latestCkpt(events, bid);
+  return Math.min(cp.level, tCap(trustScoreOf(events, bid, today)));
+}
+// 升級判定(rollover 用):先套用降級(T 掉了就掉級),再逐級檢查「T≥門檻 且 達成率地板」才升
+function nextCkptLevel(prevLevel, T, rate30) {
+  let L = Math.min(prevLevel, tCap(T));
+  while (L < 2 && T >= CONFIG.trustThresholds[L] && rate30 >= CONFIG.promoteMinAchieveRate) L++;
+  return L;
+}
+// 滾動 30 天達成率(升級專用,永不用於降級)
+function achieveRate30(events, bid, today) { return achieveRate(events, bid, today, 30); }
+// 除錯/測試用:純函式暴露到 window(唯讀,無副作用)
+if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap };
 
 // ===== B6:家長週報 =====
 // 規則式(不需 LLM)從 checkinEvents 近 7 天算出數據 + 一句「對話起點」。
@@ -218,6 +269,7 @@ class Component extends DCLogic {
     kids: [], currentKidId: null, kidSwitchOpen: false, newKidName: '', newKidAvatar: '🦊',
     // 家長 PIN 關卡(不持久化;PIN 本身另存 device key habitRank_pin)
     pinMode: null, pinEntry: '', pinError: '', pinStage: 1, parentUnlocked: false,
+    rejectConfirm: null, // #2:退回二次確認對話框(不持久化)
   };
   toMode(m) { this.setState({ mode: m }); }
   // ===== 家長 PIN:小孩沒 PIN 進不了家長頁(批准/改任務/重設都鎖在裡面)=====
@@ -262,7 +314,7 @@ class Component extends DCLogic {
       const refund = (cur && cur.honest) ? CONFIG.honestMissXP : 0;                    // 從誠實回報改為做到 → 退回小額 XP
       const xp = b.honestyEligible ? Math.round(b.xp * 1.5) : b.xp;
       // 依信任等級決定要不要家長確認:0=每次確認;1=30% 抽查、其餘即時入帳;2=畢業自主即時入帳
-      const level = (st.trustLevel && st.trustLevel[b.id]) || 0;
+      const level = trustLiveLevel(st.checkinEvents, b.id, day);   // #2:等級由事件推導
       const instant = level >= 2 || (level === 1 && Math.random() >= CONFIG.spotCheckRate);
       const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: b.coin, xp, honest: false, ts: Date.now(), date: day, verdict: instant ? 'approved' : 'pending' };
       return instant ? { checkinEvents: [...rest, ev], xp: st.xp - refund + xp, coins: st.coins + b.coin } : { checkinEvents: [...rest, ev], xp: st.xp - refund };
@@ -290,16 +342,29 @@ class Component extends DCLogic {
     });
   }
   skipMissReason() { this.setState({ missAsk: null }); }
-  // 家長逐項確認:通過才入帳
+  // 家長逐項確認:通過才入帳。退回 = 打了卡但實際沒做 → verdict='rejected',信任 −5 由 trustScoreOf 推導(不再 mutate 等級)
   confirmCheckin(id, approve) {
     this.setState(st => {
       const t = st.checkinEvents.find(e => e.id === id && e.verdict === 'pending');
       if (!t) return null;
       const events = st.checkinEvents.map(e => e === t ? { ...e, verdict: approve ? 'approved' : 'rejected' } : e);
-      if (approve) return { checkinEvents: events, coins: st.coins + t.coin, xp: st.xp + t.xp };
-      // 退回 = 打了卡但實際沒做(不誠實)→ 該行為信任降一級
-      const lvl = (st.trustLevel && st.trustLevel[t.behaviorId]) || 0;
-      return { checkinEvents: events, trustLevel: { ...st.trustLevel, [t.behaviorId]: Math.max(0, lvl - 1) } };
+      if (approve) return { checkinEvents: events, coins: st.coins + t.coin, xp: st.xp + t.xp, rejectConfirm: null };
+      return { checkinEvents: events, rejectConfirm: null };   // 退回:不入帳;−5 推導
+    });
+  }
+  // #2:退回前二次確認(app 內對話框,非 window.confirm)
+  askReject(id) { this.setState(st => { const t = st.checkinEvents.find(e => e.id === id && e.verdict === 'pending'); return t ? { rejectConfirm: { id, label: t.label } } : null; }); }
+  cancelReject() { this.setState({ rejectConfirm: null }); }
+  doReject() { const rc = this.state.rejectConfirm; if (rc) this.confirmCheckin(rc.id, false); }
+  // #2:家長撤回退回(看錯了)→ append 一筆更正事件蓋掉 rejected,並補回當初的金幣/XP(淨 0 信任)
+  undoReject(behaviorId, date) {
+    this.setState(st => {
+      const evs = st.checkinEvents.filter(e => e.behaviorId === behaviorId && e.date === date && e.verdict === 'rejected');
+      const r = evs.length ? evs[evs.length - 1] : null;
+      if (!r) return null;
+      const fix = { id: behaviorId + '-' + date + '-fix' + Date.now(), behaviorId, label: r.label, icon: r.icon, kind: r.kind,
+        coin: r.coin, xp: r.xp, honest: false, missReason: null, correction: true, ts: Date.now(), date, verdict: 'approved' };
+      return { checkinEvents: [...st.checkinEvents, fix], coins: st.coins + (r.coin || 0), xp: st.xp + (r.xp || 0) };
     });
   }
   // 家長一鍵全過
@@ -387,7 +452,7 @@ class Component extends DCLogic {
     try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, retroOpen,
       authReady, session, authEmail, authSent, authError, supaOff, guestMode, syncStatus,
       kids, currentKidId, kidSwitchOpen, newKidName, newKidAvatar,
-      pinMode, pinEntry, pinError, pinStage, parentUnlocked, ...persist } = this.state;
+      pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
     // 階段 2:登入後把變更鏡像到雲端(去抖動、盡力而為;失敗不影響本機)
     if (this._supa && this._cloudReady && this.state.session && !this._hydrating) {
@@ -424,7 +489,7 @@ class Component extends DCLogic {
   syncHash() {
     const S = this.state;
     return JSON.stringify({ c: S.coins, x: S.xp, s: S.streak, g: S.graduationStage, t: S.taskOn, m: S.manualUnlock,
-      ev: S.checkinEvents, tl: S.trustLevel, ga: S.graduatedAt,
+      ev: S.checkinEvents, ga: S.graduatedAt,   // #2:信任由 checkinEvents(含 checkpoint)推導,不再單獨 hash trustLevel
       cov: { v: S.covenant.version, t: S.covenant.terms, s: S.covenant.schedules, sig: S.covenant.signatures, h: S.covenant.history } });
   }
   async cloudInit() {
@@ -479,8 +544,11 @@ class Component extends DCLogic {
       id: r.behavior_id + '-' + r.date, behaviorId: r.behavior_id, label: lib.label || r.behavior_id, icon: lib.icon || 'i-check',
       kind: r.kind, coin: r.coin, xp: r.xp, honest: !!r.honest, missReason: r.miss_reason || null,
       ts: r.ts ? Date.parse(r.ts) : Date.now(), date: r.date, verdict: r.verdict }; });
-    const trustLevel = {}, graduatedAt = {};
-    tl.forEach(r => { trustLevel[r.behavior_id] = r.level || 0; if (r.graduated_at) graduatedAt[r.behavior_id] = String(r.graduated_at).slice(0, 10); });
+    // #2:從 trust_levels 的 t_score/level 種一筆 checkpoint 當信任基線(雲端為準,避免 60 天窗蒸發)
+    const graduatedAt = {}, scores = {};
+    tl.forEach(r => { scores[r.behavior_id] = { t: (typeof r.t_score === 'number') ? r.t_score : 0, level: r.level || 0 };
+      if (r.graduated_at) graduatedAt[r.behavior_id] = String(r.graduated_at).slice(0, 10); });
+    const seeded = Object.keys(scores).length ? [{ type: 'trust_checkpoint', date: (this.state.lastDate || ymd(new Date())), ts: Date.now(), scores }] : [];
     this._hydrating = true;
     this.setState(st => {
       const gs = Number.isInteger(kid.graduation_stage) ? kid.graduation_stage : (st.graduationStage || 0);
@@ -491,7 +559,7 @@ class Component extends DCLogic {
         history: Array.isArray(cov.history) ? cov.history : (st.covenant.history || []) } : st.covenant;
       return { coins: kid.coins || 0, xp: kid.xp || 0, streak: kid.streak || 0, graduationStage: gs,
         taskOn: (kid.task_on && Object.keys(kid.task_on).length) ? kid.task_on : st.taskOn,
-        manualUnlock: kid.manual_unlock || {}, checkinEvents, trustLevel, graduatedAt, covenant };
+        manualUnlock: kid.manual_unlock || {}, checkinEvents: [...checkinEvents, ...seeded], graduatedAt, covenant };
     }, () => { this._hydrating = false; this._lastSyncHash = this.syncHash(); });
   }
   async pushKid() {
@@ -504,15 +572,19 @@ class Component extends DCLogic {
   async pushEvents() {
     const kid = this._kidId, fam = this._familyId;
     await this._supa.from('checkin_events').delete().eq('kid_id', kid);
-    const rows = (this.state.checkinEvents || []).map(e => ({ family_id: fam, kid_id: kid, behavior_id: e.behaviorId,
+    const rows = (this.state.checkinEvents || []).filter(e => e.type !== 'trust_checkpoint').map(e => ({ family_id: fam, kid_id: kid, behavior_id: e.behaviorId,
       kind: e.kind, coin: e.coin || 0, xp: e.xp || 0, honest: !!e.honest, miss_reason: e.missReason || null,
       verdict: e.verdict, date: e.date, ts: e.ts ? new Date(e.ts).toISOString() : new Date().toISOString() }));
     if (rows.length) { const { error } = await this._supa.from('checkin_events').insert(rows); if (error) throw error; }
   }
   async pushTrust() {
-    const kid = this._kidId, fam = this._familyId, S = this.state;
-    const rows = Object.keys(S.trustLevel || {}).map(bid => ({ family_id: fam, kid_id: kid, behavior_id: bid,
-      level: S.trustLevel[bid] || 0, graduated_at: (S.graduatedAt && S.graduatedAt[bid]) ? S.graduatedAt[bid] : null }));
+    const kid = this._kidId, fam = this._familyId, S = this.state, today = S.lastDate || ymd(new Date());
+    const rows = [];
+    LIB.forEach(t => {
+      const T = trustScoreOf(S.checkinEvents, t.id, today), lvl = trustLiveLevel(S.checkinEvents, t.id, today);
+      const grad = (S.graduatedAt && S.graduatedAt[t.id]) || null;
+      if (T > 0 || lvl > 0 || grad) rows.push({ family_id: fam, kid_id: kid, behavior_id: t.id, level: lvl, t_score: T, graduated_at: grad });
+    });
     if (rows.length) { const { error } = await this._supa.from('trust_levels').upsert(rows, { onConflict: 'kid_id,behavior_id' }); if (error) throw error; }
   }
   async pushCovenant() {
@@ -593,18 +665,20 @@ class Component extends DCLogic {
     if (wasOut) { if (gap > 1) s.streak = 0; }          // 出門日保護連續(隔太多天仍中斷)
     else { s.streak = (gap === 1 && success) ? (s.streak || 0) + 1 : 0; }
     s.habit = {}; s.checked = {}; s.decided = {}; s.saved = false; s.fx = null; s.celebrate = false;
-    s.checkinEvents = (s.checkinEvents || []).filter(e => dayGap(e.date, today) <= 60); // 事件保留 60 天
-    // 信任升級:每行為一條線,連續誠實達標 + 達成率達地板 → 升一級(2=畢業)
-    s.trustLevel = { ...(s.trustLevel || {}) }; s.graduatedAt = { ...(s.graduatedAt || {}) };
+    s.checkinEvents = (s.checkinEvents || []).filter(e => dayGap(e.date, today) <= 60); // 事件保留 60 天(含 checkpoint)
+    // #2 信任:每行為由事件推導 T;rollover 寫一筆 checkpoint(升級過地板才升、降級由 T,單次不跨兩級)
+    const prevDay = s.lastDate;
+    s.graduatedAt = { ...(s.graduatedAt || {}) };
+    const scores = {};
     LIB.forEach(t => {
-      const lvl = s.trustLevel[t.id] || 0;
-      if (lvl >= 2) return;
-      const need = CONFIG.trustPromoteDays[lvl];
-      if (honestStreakOf(s.checkinEvents, t.id, today) >= need && achieveRate(s.checkinEvents, t.id, today, need) >= CONFIG.promoteMinAchieveRate) {
-        s.trustLevel[t.id] = lvl + 1;
-        if (lvl + 1 === 2) { s.graduatedAt[t.id] = today; s.gradModal = t.id; } // 觸發畢業慶祝
-      }
+      const T = trustScoreOf(s.checkinEvents, t.id, prevDay);
+      const rate = achieveRate30(s.checkinEvents, t.id, prevDay);
+      const prevLevel = latestCkpt(s.checkinEvents, t.id).level;
+      const level = nextCkptLevel(prevLevel, T, rate);
+      if (level >= 2 && prevLevel < 2) { s.graduatedAt[t.id] = today; s.gradModal = t.id; } // 觸發畢業慶祝
+      if (T > 0 || level > 0) scores[t.id] = { t: T, level };
     });
+    if (Object.keys(scores).length) s.checkinEvents = [...s.checkinEvents, { type: 'trust_checkpoint', date: prevDay, ts: Date.now(), scores }];
     s.lastDate = today; s.dayMode = defaultDayMode(today);
     return s;
   }
@@ -712,14 +786,14 @@ class Component extends DCLogic {
     // 信任子系統(與段位脫鉤):每個關鍵習慣一條線,連續誠實 → 抽查 → 畢業
     const trackedHabits = LIB.filter(t => t.type === 'habit' && S.taskOn[t.id] && available(t));
     const trustLines = trackedHabits.map(h => {
-      const lvl = (S.trustLevel && S.trustLevel[h.id]) || 0, graduated = lvl >= 2;
-      const need = lvl < 2 ? CONFIG.trustPromoteDays[lvl] : 21;
-      const streak = honestStreakOf(S.checkinEvents, h.id, today), rate = Math.round(achieveRate(S.checkinEvents, h.id, today, need) * 100);
+      const T = trustScoreOf(S.checkinEvents, h.id, today), lvl = trustLiveLevel(S.checkinEvents, h.id, today), graduated = lvl >= 2;
+      const need = CONFIG.trustThresholds[Math.min(lvl, 1)], rate = Math.round(achieveRate30(S.checkinEvents, h.id, today) * 100);
+      const hstreak = honestStreakOf(S.checkinEvents, h.id, today);
       return { label: h.label, icon: h.icon, levelName: TRUST_NAMES[lvl], graduated,
         badgeBg: graduated ? '#eef0ff' : (lvl === 1 ? '#e8f6ef' : '#fbf3e2'), badgeColor: graduated ? '#4a4ac2' : (lvl === 1 ? '#2f8a6a' : '#9c6b16'),
-        progLabel: graduated ? '已畢業 · 免驗證 · 點看證書 🎓' : ('誠實連續 ' + Math.min(streak, need) + ' / ' + need + ' 天 → ' + TRUST_NAMES[lvl + 1]),
-        progPct: graduated ? '100%' : (Math.min(100, Math.round(streak / need * 100)) + '%'),
-        rateLabel: '近期達成率 ' + rate + '%', onView: () => graduated && this.openGrad(h.id) };
+        progLabel: graduated ? '已畢業 · 免驗證 · 點看證書 🎓' : ('信任分數 ' + Math.min(T, need) + ' / ' + need + ' → ' + TRUST_NAMES[lvl + 1]),
+        progPct: graduated ? '100%' : (Math.min(100, Math.round(T / need * 100)) + '%'),
+        rateLabel: '近30天達成率 ' + rate + '% · 誠實回報連續 ' + hstreak + ' 天', onView: () => graduated && this.openGrad(h.id) };
     });
     const gradCount = trustLines.filter(l => l.graduated).length, allGrad = trackedHabits.length > 0 && gradCount === trackedHabits.length;
     const trust = allGrad
@@ -772,8 +846,11 @@ class Component extends DCLogic {
     const pendingEvents = (S.checkinEvents || []).filter(e => e.verdict === 'pending');
     const pItems = pendingEvents.map(e => ({ id: e.id, label: e.label, reward: e.coin, icon: e.icon,
       note: (e.kind === 'habit' ? '關鍵習慣' : '每日任務') + (e.honest ? ' · 誠實回報' : ''), wait: true, ok: false, no: false,
-      onOk: () => this.confirmCheckin(e.id, true), onNo: () => this.confirmCheckin(e.id, false) }));
+      onOk: () => this.confirmCheckin(e.id, true), onNo: () => this.askReject(e.id) }));   // #2:退回走二次確認
     const pWait = pItems.length;
+    // #2:今天被退回的項目 → 家長可「撤回退回(看錯了)」
+    const rejectedItems = (S.checkinEvents || []).filter(e => e.verdict === 'rejected' && e.date === today && !e.honest).map(e => ({
+      label: e.label, icon: e.icon, onUndo: () => this.undoReject(e.behaviorId, e.date) }));
     const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
     const wr = weeklyReport(S.checkinEvents, today, S.taskOn); // B6:真實週報 + 一句話
     const pRewards = itemsAll.map(it => { const on = !!S.listed[it.id]; return { id: it.id, name: it.name, cost: it.cost + '', iconHref: it.icon, gradient: grads[it.g], onToggle: () => this.toggleList(it.id), tgLabel: on ? '上架中' : '已下架', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
@@ -891,6 +968,10 @@ class Component extends DCLogic {
       covHasHistory: (S.covenant.history || []).length > 0,
       pItems, pWaitLabel: pWait > 0 ? (pWait + ' 筆待確認') : '今天都確認完了', week: wr.week, reportK1: wr.k1Label, reportHonest: wr.honestN + '', reportStreak: (S.streak || 0) + '', reportLine: wr.line, pRewards, pTasks,
       pHasPending: pWait > 0, pAllDone: pWait === 0, pWait, onApproveAll: () => this.approveAll(),
+      // #2:退回二次確認 + 撤回退回
+      rejectedItems, hasRejected: rejectedItems.length > 0,
+      rejectConfirmShow: !!S.rejectConfirm, rejectConfirmLabel: S.rejectConfirm ? S.rejectConfirm.label : '',
+      onDoReject: () => this.doReject(), onCancelReject: () => this.cancelReject(),
       nudgeShow: nudgeCount > 0, nudgeLabel: '有 ' + nudgeCount + ' 項打卡超過一天還沒看，孩子在等你 👀',
       onUseProtect: () => this.useProtect(), saved: S.saved, protectIdle: !S.saved,
       openCeleb: () => this.openCeleb(), closeCeleb: () => this.closeCeleb(), celebrate: S.celebrate,

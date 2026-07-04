@@ -3914,6 +3914,20 @@
                   </div>
                 </sc-for>
               </div>
+              <sc-if value="{{ hasRejected }}">
+                <div style="margin-top:20px">
+                  <div style="display:flex;align-items:center;gap:7px;margin:0 2px 10px"><span style="font-size:15px">↩️</span><span style="font-weight:800;font-size:13.5px;color:#1a1f2e">今天退回的 · 看錯了可撤回</span></div>
+                  <div style="display:flex;flex-direction:column;gap:9px">
+                    <sc-for list="{{ rejectedItems }}" as="rj" hint-placeholder-count="0">
+                      <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #f0d8d8;border-radius:15px;padding:12px 14px">
+                        <div style="width:34px;height:34px;border-radius:10px;background:#fdf3f3;color:#c05a5a;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:18px;height:18px"><use href="#{{ rj.icon }}"></use></svg></div>
+                        <span style="flex:1;font-weight:700;font-size:13.5px;color:#1a1f2e">{{ rj.label }}</span>
+                        <button onclick="{{ rj.onUndo }}" style="border:1.5px solid #d9dcff;background:#fff;border-radius:11px;padding:8px 13px;color:#5b5bd6;font:700 12.5px 'Noto Sans TC';cursor:pointer;white-space:nowrap">撤回退回</button>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
               <sc-if value="{{ pHasProposals }}">
                 <div style="margin-top:22px">
                   <div style="display:flex;align-items:center;gap:7px;margin:0 2px 10px"><span style="font-size:15px">💡</span><span style="font-weight:800;font-size:13.5px;color:#1a1f2e">孩子的公約提案</span></div>
@@ -4091,6 +4105,19 @@
           </div>
           <div style="border-top:1px dashed #d9dcff;padding-top:12px;margin-bottom:16px;font-size:11px;color:#aab0c0">家長見證：＿＿＿＿＿＿＿</div>
           <button onclick="{{ onCloseGrad }}" style="width:100%;border:0;border-radius:14px;padding:14px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 15px 'Noto Sans TC';cursor:pointer">太棒了！(可截圖分享)</button>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ rejectConfirmShow }}">
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(16,18,30,.55);backdrop-filter:blur(3px);animation:scrimIn .3s both;z-index:12;padding:24px">
+        <div style="width:300px;background:#fff;border-radius:24px;padding:26px 22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.5);animation:celebPop .4s both">
+          <div style="width:52px;height:52px;border-radius:16px;background:#fdf3f3;color:#c05a5a;display:flex;align-items:center;justify-content:center;margin:0 auto 14px"><svg style="width:28px;height:28px"><use href="#i-close"></use></svg></div>
+          <div style="font-weight:900;font-size:17px;color:#1a1f2e;text-align:center;margin-bottom:8px">確定退回「{{ rejectConfirmLabel }}」?</div>
+          <div style="font-size:12.5px;color:#8890a3;line-height:1.6;text-align:center;margin-bottom:20px">退回代表這筆打卡不實。孩子會被扣 5 天信任。如果之後發現看錯，可以撤回。</div>
+          <div style="display:flex;gap:9px">
+            <button onclick="{{ onCancelReject }}" style="flex:1;border:1.5px solid #e7eaf2;background:#fff;border-radius:13px;padding:13px;color:#5a6070;font:700 14px 'Noto Sans TC';cursor:pointer">取消</button>
+            <button onclick="{{ onDoReject }}" style="flex:1;border:0;border-radius:13px;padding:13px;background:#c05a5a;color:#fff;font:800 14px 'Noto Sans TC';cursor:pointer">確定退回</button>
+          </div>
         </div>
       </div>
     </sc-if>
