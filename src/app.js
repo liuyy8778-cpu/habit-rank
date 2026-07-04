@@ -280,6 +280,17 @@ class Component extends DCLogic {
       URL.revokeObjectURL(url);
     } catch (e) {}
   }
+  // 重新來過:清掉全部進度回到全新狀態(測試用)。清 localStorage 後重載,保證乾淨。
+  resetAll() {
+    if (typeof window === 'undefined') return;
+    const ok = window.confirm('確定要「重新來過」嗎?\n\n這會清掉所有金幣、XP、段位、打卡紀錄、公約簽名,回到全新狀態,無法復原。\n(建議先「匯出備份」再重置)');
+    if (!ok) return;
+    try {
+      localStorage.removeItem('habitRank');
+      localStorage.removeItem('habitRank_backup_v1');
+    } catch (e) {}
+    try { window.location.reload(); } catch (e) {}
+  }
   // 衝動延遲:練習「先暫停」的肌肉
   startPause() { this.setState({ pausing: true }); }
   resistImpulse() { this.setState(st => ({ pausing: false, pauses: (st.pauses || 0) + 1 })); }
@@ -410,6 +421,7 @@ class Component extends DCLogic {
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
       habits, dailyTasks, allToday, jr, shop, rec, appVersion: APP_VERSION,
       onExport: () => this.exportBackup(),
+      onReset: () => this.resetAll(),
       onAddHabit: () => this.setState({ mode: 'parent', pTab: 'rewards' }),
       ...todayRank,
       dayMode: mode,
