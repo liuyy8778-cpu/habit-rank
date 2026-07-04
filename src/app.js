@@ -45,7 +45,7 @@ const TRUST_NAMES = ['每次確認', '隨機抽查', '已畢業 · 自主'];
 
 // ===== 資料遷移:localStorage schema 版本控管 =====
 // 每次啟動檢查版本,舊資料無損升級並先備份到 backup_v1。
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 function migrateToV2(s) {
   if (!s || s.schemaVersion === SCHEMA_VERSION) return s;
   let v = s.schemaVersion || 1;
@@ -58,6 +58,17 @@ function migrateToV2(s) {
   if (v < 3) {                                                   // 誠實值 → 一次性 XP(1:1),移除獨立貨幣
     if (m.honest) { m.xp = (m.xp || 0) + m.honest; m.honest = 0; }
     v = 3;
+  }
+  if (v < 4) {                                                   // B3:公約雙向化欄位
+    m.covenant = { ...(m.covenant || {}) };
+    if (!Array.isArray(m.covenant.proposals)) m.covenant.proposals = [];
+    if (!Array.isArray(m.covenant.pledges)) m.covenant.pledges = [];
+    if (!Array.isArray(m.covenant.history)) m.covenant.history = [];
+    if (!m.pledgeDone) m.pledgeDone = {};
+    if (typeof m.propText !== 'string') m.propText = '';
+    if (typeof m.propReason !== 'string') m.propReason = '';
+    if (typeof m.newPledge !== 'string') m.newPledge = '';
+    v = 4;
   }
   m.schemaVersion = SCHEMA_VERSION;
   return m;
@@ -182,8 +193,12 @@ class Component extends DCLogic {
       terms: ['到約定時間，自己把手機放回充電區', '有做到就打卡；沒做到也誠實回報', '手機留在充電區過夜，不帶回房間'],
       schedules: { weekday: '21:40', weekend: '22:30' },
       signatures: { child: { name: '', at: '' }, parent: { name: '', at: '' } },
+      proposals: [],   // B3:小孩提案(pending → 家長採納/婉拒)
+      pledges: [],     // B3:家長公開承諾(誠實回報原則對家長同樣適用)
+      history: [],     // B3:修訂紀錄(who/when/改了什麼)
     },
     newTerm: '', sealing: null, missAsk: null,
+    propText: '', propReason: '', newPledge: '', pledgeDone: {}, proposeOpen: false,
     listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
@@ -278,7 +293,35 @@ class Component extends DCLogic {
   sealStart(role) { try { clearTimeout(this._sealT); } catch (e) {} this._sealT = setTimeout(() => this.doSeal(role), CONFIG.sealHoldMs); this.setState({ sealing: role }); }
   sealEnd() { try { clearTimeout(this._sealT); } catch (e) {} this.setState({ sealing: null }); }
   doSeal(role) { this.setState(st => { const n = (st.covenant.signatures[role].name || '').trim(); if (!n) return { sealing: null }; try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) {} return { sealing: null, covenant: { ...st.covenant, signatures: { ...st.covenant.signatures, [role]: { name: n, at: ymd(new Date()) } } } }; }); }
-  resign() { this.setState(st => ({ covenant: { ...st.covenant, version: st.covenant.version + 1, signatures: { child: { name: '', at: '' }, parent: { name: '', at: '' } } } })); }
+  resign() { this.setState(st => { const nv = st.covenant.version + 1; return { covenant: { ...st.covenant, version: nv, signatures: { child: { name: '', at: '' }, parent: { name: '', at: '' } }, history: [...(st.covenant.history || []), { v: nv, at: ymd(new Date()), note: '修訂公約 · 重新簽署' }] } }; }); }
+  // ===== B3:公約雙向化(小孩提案 + 家長承諾 + 修訂紀錄)=====
+  setProp(field, e) { const v = e.target.value; this.setState({ [field]: v }); }
+  // 小孩提案改公約 → 進家長待確認
+  openPropose() { this.setState({ proposeOpen: true }); }
+  closePropose() { this.setState({ proposeOpen: false, propText: '', propReason: '' }); }
+  submitProposal() {
+    this.setState(st => {
+      const text = (st.propText || '').trim(); if (!text) return { proposeOpen: false };
+      const p = { id: 'p' + Date.now(), text, reason: (st.propReason || '').trim(), at: ymd(new Date()), status: 'pending' };
+      return { propText: '', propReason: '', proposeOpen: false, covenant: { ...st.covenant, proposals: [...(st.covenant.proposals || []), p] } };
+    });
+  }
+  // 家長採納/婉拒提案:採納 → 條款加入公約 + 記修訂紀錄
+  decideProposal(id, approve) {
+    this.setState(st => {
+      const p = (st.covenant.proposals || []).find(x => x.id === id && x.status === 'pending');
+      if (!p) return null;
+      const proposals = st.covenant.proposals.map(x => x === p ? { ...x, status: approve ? 'approved' : 'rejected' } : x);
+      if (!approve) return { covenant: { ...st.covenant, proposals } };
+      return { covenant: { ...st.covenant, proposals, terms: [...st.covenant.terms, p.text],
+        history: [...(st.covenant.history || []), { v: st.covenant.version, at: ymd(new Date()), note: '採納孩子提案:' + p.text }] } };
+    });
+  }
+  setNewPledge(e) { const v = e.target.value; this.setState({ newPledge: v }); }
+  addPledge() { this.setState(st => { const t = (st.newPledge || '').trim(); if (!t) return null; return { newPledge: '', covenant: { ...st.covenant, pledges: [...(st.covenant.pledges || []), { id: 'pl' + Date.now(), text: t }] } }; }); }
+  delPledge(id) { this.setState(st => ({ covenant: { ...st.covenant, pledges: (st.covenant.pledges || []).filter(p => p.id !== id) } })); }
+  // 家長誠實回報今天有沒有做到自己的承諾(小孩看得到)
+  togglePledge(id) { this.setState(st => { const k = id + '::' + (st.lastDate || ymd(new Date())); return { pledgeDone: { ...st.pledgeDone, [k]: !st.pledgeDone[k] } }; }); }
   redeem(it) { this.setState(st => { if (st.redeemed[it.id] || st.coins < it.cost) return null; return { coins: st.coins - it.cost, redeemed: { ...st.redeemed, [it.id]: true }, fx: { name: it.name, icon: it.icon, gradient: it.gradient, spent: it.cost, left: st.coins - it.cost } }; }); }
   closeFx() { this.setState({ fx: null }); }
   // ===== 持久化 + 日期感知 =====
@@ -290,7 +333,7 @@ class Component extends DCLogic {
     this.setState(this.autoApprove(this.rollover(merged, ymd(new Date()))));
   }
   componentDidUpdate() {
-    try { const { celebrate, fx, gradModal, sealing, missAsk, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
+    try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, ...persist } = this.state; localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
   }
   // 換日結算:評估昨天的連續、重置當日完成狀態、套用新的一天預設模式
   rollover(st, today) {
@@ -511,6 +554,28 @@ class Component extends DCLogic {
       sealingChild: S.sealing === 'child', sealingParent: S.sealing === 'parent',
       sigChildUnsealed: !S.covenant.signatures.child.at, sigParentUnsealed: !S.covenant.signatures.parent.at,
       notSealingChild: S.sealing !== 'child', notSealingParent: S.sealing !== 'parent', onResign: () => this.resign(),
+      // ===== B3:公約雙向化 =====
+      // 小孩端:提案表單 + 自己的提案狀態 + 看得到家長承諾今天做到沒
+      propText: S.propText, propReason: S.propReason, proposeOpen: !!S.proposeOpen,
+      onOpenPropose: () => this.openPropose(), onClosePropose: () => this.closePropose(),
+      onPropText: (e) => this.setProp('propText', e), onPropReason: (e) => this.setProp('propReason', e), onSubmitProposal: () => this.submitProposal(),
+      kidProposals: (S.covenant.proposals || []).slice().reverse().map(p => ({ text: p.text,
+        statusLabel: p.status === 'pending' ? '審核中' : (p.status === 'approved' ? '已採納 ✓' : '這次沒採納'),
+        statusColor: p.status === 'pending' ? '#cf9a2f' : (p.status === 'approved' ? '#2fae8a' : '#a6adbe'),
+        statusBg: p.status === 'pending' ? '#f6efe0' : (p.status === 'approved' ? '#e7f6f0' : '#f2f3f7') })),
+      kidHasProposals: (S.covenant.proposals || []).length > 0,
+      kidPledges: (S.covenant.pledges || []).map(p => { const done = !!(S.pledgeDone && S.pledgeDone[p.id + '::' + today]); return { text: p.text, doneLabel: done ? '今天做到了 ✓' : '今天還沒', doneColor: done ? '#2fae8a' : '#a6adbe', doneBg: done ? '#e7f6f0' : '#f2f3f7' }; }),
+      kidHasPledges: (S.covenant.pledges || []).length > 0,
+      // 家長端:待審提案
+      pProposals: (S.covenant.proposals || []).filter(p => p.status === 'pending').map(p => ({ id: p.id, text: p.text, reason: p.reason, hasReason: !!p.reason,
+        onOk: () => this.decideProposal(p.id, true), onNo: () => this.decideProposal(p.id, false) })),
+      pHasProposals: (S.covenant.proposals || []).some(p => p.status === 'pending'),
+      // 家長端:承諾管理 + 修訂紀錄
+      newPledge: S.newPledge, onNewPledge: (e) => this.setNewPledge(e), onAddPledge: () => this.addPledge(),
+      covPledges: (S.covenant.pledges || []).map(p => { const done = !!(S.pledgeDone && S.pledgeDone[p.id + '::' + today]); return { id: p.id, text: p.text, onDel: () => this.delPledge(p.id), onToggle: () => this.togglePledge(p.id),
+        toggleLabel: done ? '今天做到了' : '標記做到', toggleBg: done ? '#e7f6f0' : '#f2f3f7', toggleColor: done ? '#2fae8a' : '#8890a3', toggleDot: done ? '#2fae8a' : '#c2c8d6' }; }),
+      covHistory: (S.covenant.history || []).slice().reverse().map(h => ({ v: 'v' + h.v, at: h.at, note: h.note })),
+      covHasHistory: (S.covenant.history || []).length > 0,
       pItems, pWaitLabel: pWait > 0 ? (pWait + ' 筆待確認') : '今天都確認完了', week: wr.week, reportK1: wr.k1Label, reportHonest: wr.honestN + '', reportStreak: (S.streak || 0) + '', reportLine: wr.line, pRewards, pTasks,
       pHasPending: pWait > 0, pAllDone: pWait === 0, pWait, onApproveAll: () => this.approveAll(),
       nudgeShow: nudgeCount > 0, nudgeLabel: '有 ' + nudgeCount + ' 項打卡超過一天還沒看，孩子在等你 👀',
