@@ -195,6 +195,20 @@ function dataProbe(events, today) {
   Object.keys(rejDays).forEach(k => { const i = k.indexOf('|'), bid = k.slice(0, i), date = k.slice(i + 1); rejN++; const nev = todayEventOf(evs, bid, dateMinus(date, -1)); if (nev && nev.verdict !== 'rejected') recov++; });
   return { latAvg: latN ? Math.round(latSum / latN) : null, latN, sesAvg: sesN ? Math.round(sesSum / sesN) : null, sesN, recovRate: rejN ? Math.round(recov / rejN * 100) : null, rejN };
 }
+// ===== APP 化手勢:分頁順序 + 純方向判斷(嚴格防誤觸)=====
+const TAB_ORDER = ['today', 'tasks', 'rank', 'shop', 'record'];
+// 方向鎖:回傳 'h'(水平)/ 'v'(垂直)/ null(未定)。水平需 |dx| > |dy|×2 且 >10px。
+function hAxisLock(dx, dy) {
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (ax > ay * 2 && ax > 10) return 'h';
+  if (ay > ax && ay > 10) return 'v';
+  return null;
+}
+// 切頁判定:水平位移過門檻(|dx| > |dy|×2 且 >60px)→ 'next'(左滑)/ 'prev'(右滑)/ null。
+function hCommit(dx, dy) {
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  return (ax > ay * 2 && ax > 60) ? (dx < 0 ? 'next' : 'prev') : null;
+}
 // 孩子端 PIN 閘門的純決策(方便測試):guard(家長 PIN 放行)/ set(兩次)/ enter(連錯5次只收家長 PIN)
 function kidPinEval(mode, stage, entry, firstEntry, targetPin, parentPin, attempts) {
   if (mode === 'guard') return (parentPin && entry === parentPin) ? { r: 'toSet' } : { r: 'err', msg: '家長 PIN 不對' };
@@ -208,7 +222,7 @@ function kidPinEval(mode, stage, entry, firstEntry, targetPin, parentPin, attemp
   return { r: 'wrong', attempts: na, msg: (na >= 5 ? '太多次了,請家長輸入 PIN' : '密碼不對,再試一次') };
 }
 // 除錯/測試用:純函式暴露到 window(唯讀,無副作用)
-if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe, kidPinEval };
+if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe, kidPinEval, hAxisLock, hCommit };
 
 // ===== B6:家長週報 =====
 // 規則式(不需 LLM)從 checkinEvents 近 7 天算出數據 + 一句「對話起點」。
@@ -323,6 +337,8 @@ class Component extends DCLogic {
     kidPinMode: null, kidPinTarget: null, kidPinEntry: '', kidPinError: '', kidPinStage: 1,
     // 裝置模式(不持久化;鏡像 localStorage habitRank_device)。deviceStep=一次性精靈;pinGoal=家長 PIN 用途
     deviceMode: null, deviceStep: null, pinGoal: 'view',
+    // APP 化手勢(不持久化):slideDir=進場動畫方向('l'/'r'/null);pullRefreshing=下拉刷新中
+    slideDir: null, pullRefreshing: false,
   };
   toMode(m) { this.setState({ mode: m }); }
   // ===== 家長 PIN(家庭層級,存雲端 families.parent_pin;localStorage 為離線快取)=====
@@ -382,7 +398,96 @@ class Component extends DCLogic {
     const has = this._readPin();
     this.setState({ pinMode: has ? 'enter' : 'set', pinEntry: '', pinError: '', pinStage: 1, pinGoal: 'device-parent' });
   }
-  kGo(t) { this.setState({ kTab: t }); }
+  kGo(t) {
+    const cur = this.state.kTab;
+    if (t === cur) return;
+    const dir = TAB_ORDER.indexOf(t) > TAB_ORDER.indexOf(cur) ? 'r' : 'l';  // 往後→新頁自右滑入(r);往前→自左(l)
+    this.setState({ kTab: t, slideDir: dir });
+    try { clearTimeout(this._slideTimer); } catch (e) {}
+    this._slideTimer = setTimeout(() => this.setState({ slideDir: null }), 240); // 動畫完成後清除,讓後續拖動的 transform 生效
+  }
+  // 分頁切換(手勢或點擊共用):dir 'next'(左滑,往後一頁)/ 'prev'(右滑,往前一頁)
+  swipeTab(dir) {
+    const i = TAB_ORDER.indexOf(this.state.kTab);
+    const ni = dir === 'next' ? i + 1 : i - 1;
+    if (ni < 0 || ni >= TAB_ORDER.length) return false;
+    this.kGo(TAB_ORDER[ni]);
+    return true;
+  }
+  // 下拉刷新:重新從雲端載入目前小孩(僅登入時)。無雲端則只做視覺回饋。
+  async cloudRefresh() {
+    if (this.state.pullRefreshing) return;
+    const kid = (this.state.kids || []).find(k => k.id === this.state.currentKidId);
+    if (!this._supa || !this._cloudReady || !this.state.session || !kid) return;
+    this.setState({ pullRefreshing: true });
+    try { await this.cloudLoad(kid); } catch (e) {}
+    setTimeout(() => this.setState({ pullRefreshing: false }), 400);  // 至少顯示一下,避免閃爍
+  }
+  // ===== APP 化手勢:離開頁跟手 + 新頁滑入;下拉刷新。EVENT_MAP 無 touchmove,手動掛 document 監聽 =====
+  _gestureOK() {                                                  // 只在孩子端、無任何遮罩/對話框時啟用
+    const s = this.state;
+    if (s.mode !== 'kid') return false;
+    if (s.gradModal || s.celebrate || s.sealing || s.missAsk || s.proposeOpen || s.retroOpen || s.fx) return false;
+    if (s.kidSwitchOpen || s.pinMode || s.kidPinMode || s.deviceStep || s.rejectConfirm) return false;
+    if (!s.session && !s.guestMode) return false;                 // 登入閘門仍在
+    return true;
+  }
+  _onTouchStart(e) {
+    this._gReset();
+    if (!this._gestureOK() || !e.touches || e.touches.length !== 1) return;
+    const el = e.target && e.target.closest ? e.target.closest('.scroll') : null;
+    if (!el) return;
+    const t = e.touches[0];
+    this._gEl = el; this._gx0 = t.clientX; this._gy0 = t.clientY;
+    this._gLock = null; this._gMode = null; this._gTop = el.scrollTop <= 0;
+    el.style.transition = '';                                      // 拖動期間即時跟手,不要過渡
+  }
+  _onTouchMove(e) {
+    if (!this._gEl || !e.touches || e.touches.length !== 1) return;
+    const t = e.touches[0], dx = t.clientX - this._gx0, dy = t.clientY - this._gy0;
+    this._gLastX = t.clientX; this._gLastY = t.clientY;           // 記最後位置(touchend 無 touches)
+    if (!this._gLock) { this._gLock = hAxisLock(dx, dy); if (!this._gLock) return; }
+    if (this._gLock === 'h') {
+      const dir = dx < 0 ? 'next' : 'prev';
+      const i = TAB_ORDER.indexOf(this.state.kTab);
+      const edge = (dir === 'next' && i >= TAB_ORDER.length - 1) || (dir === 'prev' && i <= 0);
+      this._gMode = 'h';
+      const off = edge ? dx * 0.3 : dx;                            // 邊界阻尼:跟手距離 × 0.3
+      this._gEl.style.transform = 'translateX(' + off + 'px)';
+      if (e.cancelable) e.preventDefault();                        // 接管水平 → 阻止原生捲動
+    } else if (this._gLock === 'v') {
+      if (dy > 0 && this._gTop && !this.state.pullRefreshing) {    // 頁面已在頂端且下拉 → 準備刷新
+        this._gMode = 'v';
+        this._gPullDist = dy;
+        if (e.cancelable) e.preventDefault();
+      }
+    }
+  }
+  _onTouchEnd() {
+    const el = this._gEl;
+    if (!el) { this._gReset(); return; }
+    if (this._gMode === 'h') {
+      const dx = this._gLastDx();
+      const cm = hCommit(dx, this._gLastDy());
+      const i = TAB_ORDER.indexOf(this.state.kTab);
+      const canGo = cm && ((cm === 'next' && i < TAB_ORDER.length - 1) || (cm === 'prev' && i > 0));
+      if (canGo) {
+        el.style.transition = 'transform .18s ease-out';          // 離開頁:剩餘位移滑出,不跳變
+        el.style.transform = 'translateX(' + (cm === 'next' ? '-100%' : '100%') + ')';
+        setTimeout(() => this.swipeTab(cm), 170);                 // 動畫將盡再換頁,新頁 CSS keyframe 滑入
+      } else {
+        el.style.transition = 'transform .15s ease-out';          // 未達門檻/邊界:平滑回彈,非瞬移
+        el.style.transform = 'translateX(0)';
+        setTimeout(() => { if (el) el.style.transition = ''; }, 160);
+      }
+    } else if (this._gMode === 'v' && this._gPullDist > 64) {
+      this.cloudRefresh();
+    }
+    this._gReset();
+  }
+  _gLastDx() { return this._gLastX != null ? this._gLastX - this._gx0 : 0; }
+  _gLastDy() { return this._gLastY != null ? this._gLastY - this._gy0 : 0; }
+  _gReset() { this._gEl = null; this._gLock = null; this._gMode = null; this._gPullDist = 0; this._gLastX = null; this._gLastY = null; }
   pGo(t) { this.setState({ pTab: t }); }
   // 小孩送出「做到」:建立 pending 事件,不立即入帳(等家長確認)。honestyEligible 任務 XP×1.5。
   submitCheckin(b) {
@@ -562,6 +667,14 @@ class Component extends DCLogic {
         else if (document.visibilityState === 'visible' && !this._sessionStart) { this._sessionStart = Date.now(); }
       };
       document.addEventListener('visibilitychange', this._visHandler);
+      // APP 化手勢:手動掛 document touch 監聽(touchmove 需 passive:false 才能 preventDefault)
+      this._tsH = (e) => this._onTouchStart(e);
+      this._tmH = (e) => this._onTouchMove(e);
+      this._teH = () => this._onTouchEnd();
+      document.addEventListener('touchstart', this._tsH, { passive: true });
+      document.addEventListener('touchmove', this._tmH, { passive: false });
+      document.addEventListener('touchend', this._teH, { passive: true });
+      document.addEventListener('touchcancel', this._teH, { passive: true });
     }
   }
   recordSession() {
@@ -571,7 +684,8 @@ class Component extends DCLogic {
     const day = this.state.lastDate || ymd(new Date());
     this.setState(st => ({ checkinEvents: [...(st.checkinEvents || []), { type: 'session', date: day, ts: Date.now(), durationSec }] }));
   }
-  componentWillUnmount() { try { this.recordSession(); if (this._visHandler) document.removeEventListener('visibilitychange', this._visHandler); } catch (e) {} }
+  componentWillUnmount() { try { this.recordSession(); if (this._visHandler) document.removeEventListener('visibilitychange', this._visHandler);
+    if (this._tsH) { document.removeEventListener('touchstart', this._tsH); document.removeEventListener('touchmove', this._tmH); document.removeEventListener('touchend', this._teH); document.removeEventListener('touchcancel', this._teH); } } catch (e) {} }
   componentDidUpdate() {
     try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, retroOpen,
       authReady, session, authEmail, authSent, authError, supaOff, guestMode, syncStatus,
@@ -1172,6 +1286,8 @@ class Component extends DCLogic {
       week7, week7Done: week7Done + '/7', week7Good, week7Hint: week7Good ? '狀態很穩,繼續保持' : '斷一天沒關係——看的是這 7 天,不是完美',
       goToday: () => this.kGo('today'), goTasks: () => this.kGo('tasks'), goRank: () => this.kGo('rank'), goShop: () => this.kGo('shop'), goRecord: () => this.kGo('record'),
       pgToday: K === 'today', pgTasks: K === 'tasks', pgRank: K === 'rank', pgShop: K === 'shop', pgRecord: K === 'record',
+      slideAnim: this.state.slideDir === 'r' ? 'slideInR .22s ease-out' : this.state.slideDir === 'l' ? 'slideInL .22s ease-out' : 'none',
+      pullRefreshing: this.state.pullRefreshing,
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
       habits, dailyTasks, jr, shop, rec, appVersion: APP_VERSION,
       hasDailyTasks: dailyTasks.length > 0, noDailyTasks: dailyTasks.length === 0, pickedLabel: pickedCount + ' 個',
