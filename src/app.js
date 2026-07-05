@@ -213,6 +213,29 @@ function hCommit(dx, dy) {
   const ax = Math.abs(dx), ay = Math.abs(dy);
   return (ax > ay * 2 && ax > 60) ? (dx < 0 ? 'next' : 'prev') : null;
 }
+// ===== A1-補:提案審核輔助(純函式,只鋪事實、不給准駁建議)=====
+function dailyCoinAvg(events, today) {                            // 近 14 天日均 coin 收入(已入帳、非誠實回報)
+  let sum = 0;
+  (events || []).forEach(e => { if (e.behaviorId && e.date && dayGap(e.date, today) <= 14 && (e.verdict === 'approved' || e.verdict === 'auto') && !e.honest) sum += (e.coin || 0); });
+  return sum / 14;
+}
+function taskPriceBand(bounty) {                                  // 對照任務池定價尺(LIB task coin 區間)
+  const cs = LIB.filter(t => t.type === 'task').map(t => t.coin);
+  if (!cs.length || !bounty || bounty <= 0) return null;
+  const lo = Math.min.apply(null, cs), hi = Math.max.apply(null, cs);
+  return { lo, hi, band: bounty < lo ? '偏低' : (bounty > hi ? '偏高' : '合理') };
+}
+function similarLibLabel(text) {                                  // 與現有核心習慣/任務池文字高度相似 → 回傳該項名稱(字元 Jaccard ≥ .45)
+  const norm = s => (s || '').replace(/[\s·、,，。.\/]/g, '');
+  const a = norm(text); if (a.length < 2) return null;
+  const setA = new Set(a.split(''));
+  let best = null, bestScore = 0;
+  LIB.forEach(t => { const b = norm(t.label); if (!b) return; const setB = new Set(b.split(''));
+    let inter = 0; setA.forEach(c => { if (setB.has(c)) inter++; });
+    const uni = new Set([...setA, ...setB]).size, score = uni ? inter / uni : 0;
+    if (score > bestScore) { bestScore = score; best = t.label; } });
+  return bestScore >= 0.45 ? best : null;
+}
 // 孩子端 PIN 閘門的純決策(方便測試):guard(家長 PIN 放行)/ set(兩次)/ enter(連錯5次只收家長 PIN)
 function kidPinEval(mode, stage, entry, firstEntry, targetPin, parentPin, attempts) {
   if (mode === 'guard') return (parentPin && entry === parentPin) ? { r: 'toSet' } : { r: 'err', msg: '家長 PIN 不對' };
@@ -226,7 +249,7 @@ function kidPinEval(mode, stage, entry, firstEntry, targetPin, parentPin, attemp
   return { r: 'wrong', attempts: na, msg: (na >= 5 ? '太多次了,請家長輸入 PIN' : '密碼不對,再試一次') };
 }
 // 除錯/測試用:純函式暴露到 window(唯讀,無副作用)
-if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe, kidPinEval, hAxisLock, hCommit };
+if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe, kidPinEval, hAxisLock, hCommit, dailyCoinAvg, taskPriceBand, similarLibLabel };
 
 // ===== B6:家長週報 =====
 // 規則式(不需 LLM)從 checkinEvents 近 7 天算出數據 + 一句「對話起點」。
@@ -1256,6 +1279,7 @@ class Component extends DCLogic {
     });
     const pendingProps = (S.covenant.proposals || []).filter(p => p.status === 'pending').length;
     const inboxEmpty = pWait === 0 && pendingProps === 0 && rejectedItems.length === 0; // 四區全空 → 空狀態
+    const kidDailyCoin = dailyCoinAvg(S.checkinEvents, today);   // A1-補:近14天日均 coin,換算提案開價相當幾天收入
     const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
     const wr = weeklyReport(S.checkinEvents, today, S.taskOn); // B6:真實週報 + 一句話
     const probe = dataProbe(S.checkinEvents, today); // #3:反向指標數據自查
@@ -1428,11 +1452,24 @@ class Component extends DCLogic {
       kidPledges: (S.covenant.pledges || []).map(p => { const done = !!(S.pledgeDone && S.pledgeDone[p.id + '::' + today]); return { text: p.text, doneLabel: done ? '今天做到了 ✓' : '今天還沒', doneColor: done ? '#2fae8a' : '#a6adbe', doneBg: done ? '#e7f6f0' : '#f2f3f7' }; }),
       kidHasPledges: (S.covenant.pledges || []).length > 0,
       // 家長端:待審提案
-      pProposals: (S.covenant.proposals || []).filter(p => p.status === 'pending').map(p => ({ id: p.id,
-        text: (p.kind === 'task' ? '🧩 新任務:' : '📜 改公約:') + p.text,
-        reason: p.kind === 'task' ? (p.reason ? '孩子開價:' + p.reason + ' 幣(最終由你定價)' : '孩子未開價') : p.reason,
-        hasReason: p.kind === 'task' ? true : !!p.reason,
-        onOk: () => this.decideProposal(p.id, true), onNo: () => this.decideProposal(p.id, false) })),
+      pProposals: (S.covenant.proposals || []).filter(p => p.status === 'pending').map(p => {
+        const isTask = p.kind === 'task';
+        const bounty = isTask ? (parseInt((p.reason || '').replace(/[^0-9]/g, ''), 10) || 0) : 0;
+        const pb = isTask ? taskPriceBand(bounty) : null;                       // 定價尺對照
+        const dup = isTask ? similarLibLabel(p.text) : null;                    // 相似重複偵測
+        const days = (isTask && bounty > 0 && kidDailyCoin > 0) ? Math.round(bounty / kidDailyCoin * 10) / 10 : null;
+        return { id: p.id,
+          text: (isTask ? '🧩 新任務:' : '📜 改公約:') + p.text,
+          reason: isTask ? '' : p.reason, hasReason: isTask ? false : !!p.reason,
+          isTask, okLabel: isTask ? '採納這個任務' : '採納，加入公約',
+          // A1-補:事實比對(不給准駁)
+          assistIncome: !isTask ? '' : (days != null
+            ? ('他開價 ' + bounty + ' 幣 ≈ 他 ' + days + ' 天收入(近 14 天日均)')
+            : ('他開價 ' + bounty + ' 幣 · 近 14 天尚無足夠收入可換算')),
+          assistPrice: pb ? ('任務池定價尺 ' + pb.lo + '–' + pb.hi + ' 幣 · 此開價' + pb.band) : '',
+          hasAssistPrice: !!pb, dupShow: !!dup, dupLabel: dup ? ('可能與「' + dup + '」重複') : '',
+          onOk: () => this.decideProposal(p.id, true), onNo: () => this.decideProposal(p.id, false) };
+      }),
       pHasProposals: (S.covenant.proposals || []).some(p => p.status === 'pending'),
       // 家長端:承諾管理 + 修訂紀錄
       newPledge: S.newPledge, onNewPledge: (e) => this.setNewPledge(e), onAddPledge: () => this.addPledge(),
