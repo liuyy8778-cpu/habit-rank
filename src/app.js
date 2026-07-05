@@ -321,38 +321,67 @@ class Component extends DCLogic {
     rejectConfirm: null, // #2:退回二次確認對話框(不持久化)
     // 孩子端身分保護:切換時的 PIN 閘門(不持久化;孩子密碼存雲端 kids.pin + 記憶體 _kidPins)
     kidPinMode: null, kidPinTarget: null, kidPinEntry: '', kidPinError: '', kidPinStage: 1,
+    // 裝置模式(不持久化;鏡像 localStorage habitRank_device)。deviceStep=一次性精靈;pinGoal=家長 PIN 用途
+    deviceMode: null, deviceStep: null, pinGoal: 'view',
   };
   toMode(m) { this.setState({ mode: m }); }
-  // ===== 家長 PIN:小孩沒 PIN 進不了家長頁(批准/改任務/重設都鎖在裡面)=====
-  _readPin() { try { return localStorage.getItem('habitRank_pin'); } catch (e) { return null; } }
-  _writePin(p) { try { localStorage.setItem('habitRank_pin', p); } catch (e) {} }
+  // ===== 家長 PIN(家庭層級,存雲端 families.parent_pin;localStorage 為離線快取)=====
+  _readPin() { if (this._parentPin != null) return this._parentPin; try { return localStorage.getItem('habitRank_pin'); } catch (e) { return null; } }
+  _writePin(p) {                                                 // 寫記憶體 + 本機快取 + 雲端(家庭唯一)
+    this._parentPin = p;
+    try { localStorage.setItem('habitRank_pin', p); } catch (e) {}
+    if (this._supa && this._familyId) { try { this._supa.from('families').update({ parent_pin: p }).eq('id', this._familyId).then(() => {}, () => {}); } catch (e) {} }
+  }
   enterParent() {
+    if (this.state.deviceMode === 'kid') return;                 // 孩子裝置:不進家長路徑
     if (this.state.parentUnlocked) { this.setState({ mode: 'parent' }); return; }
     const pin = this._readPin();
-    this.setState({ pinMode: pin ? 'enter' : 'set', pinEntry: '', pinError: '', pinStage: 1 });
+    this.setState({ pinMode: pin ? 'enter' : 'set', pinEntry: '', pinError: '', pinStage: 1, pinGoal: 'view' });
   }
   goKid() { this.setState({ mode: 'kid', parentUnlocked: false }); }  // 回小孩即上鎖,下次進家長要再輸入
   pinPress(d) {
-    this.setState(st => {
-      if (!st.pinMode || st.pinEntry.length >= 4) return null;
-      const e = st.pinEntry + d;
-      if (e.length < 4) return { pinEntry: e, pinError: '' };
-      if (st.pinMode === 'enter') {
-        return (e === this._readPin())
-          ? { pinMode: null, parentUnlocked: true, mode: 'parent', pinEntry: '', pinError: '' }
-          : { pinEntry: '', pinError: 'PIN 不對,再試一次' };
-      }
-      // set 模式:輸入兩次確認
-      if (st.pinStage === 2) {
-        if (e === this._pinFirst) { this._writePin(e); return { pinMode: null, parentUnlocked: true, mode: 'parent', pinEntry: '', pinStage: 1, pinError: '' }; }
-        return { pinEntry: '', pinStage: 1, pinError: '兩次不一樣,重設一次' };
-      }
-      this._pinFirst = e; return { pinEntry: '', pinStage: 2, pinError: '' };
-    });
+    const st = this.state; if (!st.pinMode || st.pinEntry.length >= 4) return;
+    const e = st.pinEntry + d, goal = st.pinGoal || 'view';
+    if (e.length < 4) { this.setState({ pinEntry: e, pinError: '' }); return; }
+    if (st.pinMode === 'enter') {
+      if (e === this._readPin()) this._pinSuccess(goal);
+      else this.setState({ pinEntry: '', pinError: 'PIN 不對,再試一次' });
+      return;
+    }
+    if (st.pinStage === 2) {                                     // set 模式:兩次確認
+      if (e === this._pinFirst) { this._writePin(e); this._pinSuccess(goal); }
+      else this.setState({ pinEntry: '', pinStage: 1, pinError: '兩次不一樣,重設一次' });
+      return;
+    }
+    this._pinFirst = e; this.setState({ pinEntry: '', pinStage: 2, pinError: '' });
+  }
+  _pinSuccess(goal) {
+    const base = { pinMode: null, pinEntry: '', pinStage: 1, pinError: '', pinGoal: 'view' };
+    if (goal === 'device-kid') { this.setState({ ...base, deviceStep: null }); this._setDevice('kid'); return; }
+    if (goal === 'device-parent') { this._setDevice('parent'); this.setState({ ...base, parentUnlocked: true, mode: 'parent' }); return; }
+    this.setState({ ...base, parentUnlocked: true, mode: 'parent' });   // 一般進家長 view
   }
   pinDelete() { this.setState(st => ({ pinEntry: st.pinEntry.slice(0, -1), pinError: '' })); }
-  pinCancel() { this.setState({ pinMode: null, pinEntry: '', pinStage: 1, pinError: '' }); }
-  forgotPin() { this.signOut(); }  // 登出→只有家長收得到登入信→重登後重設 PIN
+  pinCancel() { this.setState({ pinMode: null, pinEntry: '', pinStage: 1, pinError: '', pinGoal: 'view' }); }
+  // ===== 裝置模式:孩子裝置不出現家長入口 =====
+  chooseDeviceRole(role) { if (role === 'parent') this._setDevice('parent'); else this.setState({ deviceStep: 'kidpick' }); }
+  pickDeviceKid(id) {
+    const proceed = () => { const has = this._readPin(); this.setState({ deviceStep: 'setpin', pinMode: has ? 'enter' : 'set', pinEntry: '', pinError: '', pinStage: 1, pinGoal: 'device-kid' }); };
+    if (id === this.state.currentKidId || !this._supa) proceed();  // 精靈內切換不需孩子 PIN(家長在操作)
+    else this._doSwitch(id).then(proceed, proceed);
+  }
+  _setDevice(mode) {
+    try { localStorage.setItem('habitRank_device', mode); } catch (e) {}
+    this.setState({ deviceMode: mode, deviceStep: null, mode: mode === 'kid' ? 'kid' : 'parent', parentUnlocked: mode === 'parent', kidSwitchOpen: false });
+  }
+  // 長按版本號(僅孩子裝置)→ 家長 PIN → 切回家長模式
+  verPressStart() { if (this.state.deviceMode !== 'kid') return; try { clearTimeout(this._verT); } catch (e) {} this._verT = setTimeout(() => this._verLong(), 2000); }
+  verPressEnd() { try { clearTimeout(this._verT); } catch (e) {} }
+  _verLong() {
+    if (this.state.deviceMode !== 'kid') return;
+    const has = this._readPin();
+    this.setState({ pinMode: has ? 'enter' : 'set', pinEntry: '', pinError: '', pinStage: 1, pinGoal: 'device-parent' });
+  }
   kGo(t) { this.setState({ kTab: t }); }
   pGo(t) { this.setState({ pTab: t }); }
   // 小孩送出「做到」:建立 pending 事件,不立即入帳(等家長確認)。honestyEligible 任務 XP×1.5。
@@ -519,6 +548,10 @@ class Component extends DCLogic {
     try { saved = JSON.parse(localStorage.getItem('habitRank') || 'null'); } catch (e) {}
     if (saved) saved = migrateToV2(saved);
     const merged = saved ? { ...this.state, ...saved } : { ...this.state };
+    // 裝置模式:讀本機;孩子裝置強制 kid view
+    let dev = null; try { dev = localStorage.getItem('habitRank_device'); } catch (e) {}
+    merged.deviceMode = (dev === 'parent' || dev === 'kid') ? dev : null;
+    if (merged.deviceMode === 'kid') merged.mode = 'kid';
     this.setState(this.autoApprove(this.rollover(merged, ymd(new Date()))));
     this.initSupabase();
     // #3:session 停留埋點 —— app 被切到背景/關閉時記一筆停留秒數(append-only 事件)
@@ -544,8 +577,11 @@ class Component extends DCLogic {
       authReady, session, authEmail, authSent, authError, supaOff, guestMode, syncStatus,
       kids, currentKidId, kidSwitchOpen, newKidName, newKidAvatar,
       pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm,
-      kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage, ...persist } = this.state;
+      kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage,
+      deviceMode, deviceStep, pinGoal, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
+    // 防呆:孩子裝置若因 bug 進到家長 view,一律導回孩子頁
+    if (this.state.deviceMode === 'kid' && this.state.mode === 'parent') { this.setState({ mode: 'kid', parentUnlocked: false }); }
     // 階段 2:登入後把變更鏡像到雲端(去抖動、盡力而為;失敗不影響本機)
     if (this._supa && this._cloudReady && this.state.session && !this._hydrating) {
       try { clearTimeout(this._saveTimer); } catch (e) {}
@@ -574,7 +610,7 @@ class Component extends DCLogic {
       .catch((err) => this.setState({ authError: String((err && err.message) || err) }));
   }
   skipLogin() { this.setState({ guestMode: true }); }
-  signOut() { try { if (this._supa) this._supa.auth.signOut(); } catch (e) {} try { localStorage.removeItem('habitRank_pin'); } catch (e) {} this._cloudReady = false; this._familyId = null; this._kidId = null; this.setState({ session: null, guestMode: false, authSent: false, syncStatus: '', parentUnlocked: false, pinMode: null, mode: 'kid' }); }
+  signOut() { try { if (this._supa) this._supa.auth.signOut(); } catch (e) {} try { localStorage.removeItem('habitRank_pin'); } catch (e) {} this._cloudReady = false; this._familyId = null; this._kidId = null; this._parentPin = null; this.setState({ session: null, guestMode: false, authSent: false, syncStatus: '', parentUnlocked: false, pinMode: null, mode: 'kid' }); }
   // ===== 階段 2:雲端資料層(家庭空間 → 小孩 → 打卡/信任/公約)=====
   // 只鏡像「核心進度」:kid 彙總 + checkin_events + trust_levels + covenant。
   // proposals / pledges / rewards 暫留本機(id 穩定性待階段 2b 處理)。
@@ -593,11 +629,17 @@ class Component extends DCLogic {
       const u = await this._supa.auth.getUser();
       const uid = u && u.data && u.data.user && u.data.user.id;
       if (!uid) throw new Error('no user');
-      let { data: fams, error: fe } = await this._supa.from('families').select('id').eq('owner_id', uid).limit(1);
+      let { data: fams, error: fe } = await this._supa.from('families').select('id, parent_pin').eq('owner_id', uid).limit(1);
       if (fe) throw fe;
       let familyId = (fams && fams.length) ? fams[0].id : null;
+      let cloudPin = (fams && fams.length) ? fams[0].parent_pin : null;
       if (!familyId) { const { data: ins, error: ie } = await this._supa.from('families').insert({ owner_id: uid }).select('id').single(); if (ie) throw ie; familyId = ins.id; }
       this._familyId = familyId;
+      // 家長 PIN 家庭層級:雲端有 → 進記憶體+快取;雲端沒有但本機有(舊裝置)→ 遷移上雲成為全家唯一
+      let localPin = null; try { localPin = localStorage.getItem('habitRank_pin'); } catch (e) {}
+      if (cloudPin) { this._parentPin = cloudPin; try { localStorage.setItem('habitRank_pin', cloudPin); } catch (e) {} }
+      else if (localPin) { this._parentPin = localPin; try { await this._supa.from('families').update({ parent_pin: localPin }).eq('id', familyId); } catch (e) {} }
+      else { this._parentPin = null; }
       let { data: rows, error: ke } = await this._supa.from('kids').select('*').eq('family_id', familyId).order('created_at');
       if (ke) throw ke;
       rows = rows || [];
@@ -610,6 +652,7 @@ class Component extends DCLogic {
       if (cur) { await this.cloudLoad(cur); try { localStorage.setItem('habitRank_kid', cur.id); } catch (e) {} }
       this._cloudReady = true;
       this.setState({ syncStatus: 'ok' });
+      if (!this.state.deviceMode) this.setState({ deviceStep: 'role' });   // 首次登入 → 一次性裝置精靈
     } catch (e) { this.setState({ syncStatus: 'error:' + ((e && e.message) || e) }); }
     this._cloudBusy = false;
   }
@@ -1073,17 +1116,26 @@ class Component extends DCLogic {
     const K = S.kTab, isKid = S.mode === 'kid';
     return {
       isKid, isParent: S.mode === 'parent', toKid: () => this.goKid(), toParent: () => this.enterParent(),
-      // 家長 PIN 關卡
+      isKidDevice: S.deviceMode === 'kid', notKidDevice: S.deviceMode !== 'kid',
+      // 家長 PIN 關卡(標題/副標依用途 pinGoal)
       showPinGate: !!S.pinMode, pinIsEnter: S.pinMode === 'enter', pinIsSet: S.pinMode === 'set',
-      pinTitle: S.pinMode === 'enter' ? '輸入家長 PIN' : (S.pinStage === 2 ? '再輸入一次確認' : '設定家長 PIN'),
-      pinSubtitle: S.pinMode === 'enter' ? '只有家長進得來——批准打卡、改任務、看週報。' : (S.pinStage === 2 ? '確認一下,避免打錯。' : '第一次進家長,先設一組 4 位數 PIN。小孩不知道就進不來。'),
+      pinTitle: S.pinMode === 'enter' ? (S.pinGoal === 'device-kid' ? '確認家長 PIN' : '輸入家長 PIN') : (S.pinStage === 2 ? '再輸入一次確認' : '設定家長 PIN'),
+      pinSubtitle: (function () {
+        if (S.pinGoal === 'device-kid') return S.pinMode === 'enter' ? '設為孩子裝置前,請家長確認身分。' : (S.pinStage === 2 ? '確認一下,避免打錯。' : '這個家庭還沒有家長 PIN,先設一組(之後切回家長模式用)。');
+        if (S.pinGoal === 'device-parent') return '切回家長模式 —— 請輸入家長 PIN。';
+        return S.pinMode === 'enter' ? '只有家長進得來——批准打卡、改任務、看週報。' : (S.pinStage === 2 ? '確認一下,避免打錯。' : '第一次進家長,先設一組 4 位數 PIN。小孩不知道就進不來。'); })(),
       pinDots: [0, 1, 2, 3].map(i => ({ dotBg: i < S.pinEntry.length ? '#fff' : 'transparent' })),
       pinError: S.pinError, hasPinError: !!S.pinError,
       pinKeys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'blank', '0', 'del'].map(k => ({
         label: k === 'del' ? '⌫' : (k === 'blank' ? '' : k),
         keyBg: k === 'blank' ? 'transparent' : 'rgba(255,255,255,.18)',
         onPress: k === 'del' ? (() => this.pinDelete()) : (k === 'blank' ? (() => {}) : (() => this.pinPress(k))) })),
-      onPinCancel: () => this.pinCancel(), onForgotPin: () => this.forgotPin(),
+      onPinCancel: () => this.pinCancel(),
+      // 裝置精靈 + 版本號長按(切回家長)
+      showDeviceRole: S.deviceStep === 'role', showDeviceKidPick: S.deviceStep === 'kidpick',
+      onDeviceParent: () => this.chooseDeviceRole('parent'), onDeviceKid: () => this.chooseDeviceRole('kid'),
+      deviceKidList: (S.kids || []).map(k => ({ name: k.name, avatar: k.avatar || '🦊', onPick: () => this.pickDeviceKid(k.id) })),
+      onVerDown: () => this.verPressStart(), onVerUp: () => this.verPressEnd(),
       // 階段 1:登入閘門
       showAuthLoading: !S.supaOff && !S.guestMode && !S.authReady,
       showLogin: !S.supaOff && !S.guestMode && S.authReady && !S.session,

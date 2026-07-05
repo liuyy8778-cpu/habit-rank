@@ -3,10 +3,15 @@
 集中記錄「已知但刻意延後」的項目,避免靠記憶。做的時候從這裡勾掉。
 
 ## 🔒 安全 / 技術債
-- **孩子 PIN 明碼上雲 + 全載入記憶體**(身分保護那波登記)
-  - 現況:kids.pin 明碼存 Supabase;登入後所有孩子 PIN 進 `this._kidPins`,可被 DevTools 窺視。
+- **PIN 明碼上雲 + 全載入記憶體**(孩子 PIN kids.pin、家長 PIN families.parent_pin)
+  - 現況:明碼存 Supabase;登入後進記憶體(`this._kidPins`/`this._parentPin`),可被 DevTools 窺視。
   - 威脅等級:4 碼輕量關卡、RLS 擋跨家庭;同裝置手足仍可能翻出。
   - 未來:改用 **Supabase RPC 伺服器端驗證**(PIN 雜湊存後端,前端只送「驗證請求」,不下載明碼)。
+- **裝置模式為 UI 層隔離**:deviceMode 存 localStorage,懂 DevTools 可改。硬隔離需**伺服器端 role**
+  (Supabase RLS 依登入身分限制家長資料存取)。與上面 PIN RPC 同批未來處理。
+- **忘記家長 PIN 的救援**:PIN 改家庭層級上雲後,原「登出重設」失效(已移除該按鈕)。
+  需做「寄 magic link 到家長 email → 點連結 → 清 families.parent_pin」的救援流程。暫時:家長可自行到
+  Supabase 後台清該欄位。
 
 ## 🧭 基線觀察期(進行中,禁動激勵結構)
 - **#1 獎勵淡出曲線**:等 #3 埋點累積 2–3 週基線數據後才校準,現在不碰任何獎勵參數。
