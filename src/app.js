@@ -195,6 +195,8 @@ function dataProbe(events, today) {
   Object.keys(rejDays).forEach(k => { const i = k.indexOf('|'), bid = k.slice(0, i), date = k.slice(i + 1); rejN++; const nev = todayEventOf(evs, bid, dateMinus(date, -1)); if (nev && nev.verdict !== 'rejected') recov++; });
   return { latAvg: latN ? Math.round(latSum / latN) : null, latN, sesAvg: sesN ? Math.round(sesSum / sesN) : null, sesN, recovRate: rejN ? Math.round(recov / rejN * 100) : null, rejN };
 }
+// 家長 view 強制起點:每次進入一律回收件匣、清掉子頁/詳情(行動導向儀表板核心,不沿用上次停留)
+const PARENT_START = { pTab: 'inbox', pManage: null, pDetailKid: null };
 // ===== APP 化手勢:分頁順序 + 純方向判斷(嚴格防誤觸)=====
 const TAB_ORDER = ['today', 'tasks', 'rank', 'shop', 'record'];
 // 方向鎖:回傳 'h'(水平)/ 'v'(垂直)/ null(未定)。水平需 |dx| > |dy|×2 且 >10px。
@@ -304,7 +306,7 @@ class Component extends DCLogic {
     document.body.appendChild(d);
   }
   state = {
-    mode: 'kid', kTab: 'today', pTab: 'pending',
+    mode: 'kid', kTab: 'today', pTab: 'inbox', pManage: null, pDetailKid: null,
     schemaVersion: 3, checkinEvents: [],
     lastDate: null, dayMode: 'home',
     coins: 0, streak: 0, xp: 0, protects: 0, honest: 0,
@@ -350,7 +352,7 @@ class Component extends DCLogic {
   }
   enterParent() {
     if (this.state.deviceMode === 'kid') return;                 // 孩子裝置:不進家長路徑
-    if (this.state.parentUnlocked) { this.setState({ mode: 'parent' }); return; }
+    if (this.state.parentUnlocked) { this.setState({ mode: 'parent', ...PARENT_START }); return; }  // 強制起點:收件匣
     const pin = this._readPin();
     this.setState({ pinMode: pin ? 'enter' : 'set', pinEntry: '', pinError: '', pinStage: 1, pinGoal: 'view' });
   }
@@ -374,8 +376,8 @@ class Component extends DCLogic {
   _pinSuccess(goal) {
     const base = { pinMode: null, pinEntry: '', pinStage: 1, pinError: '', pinGoal: 'view' };
     if (goal === 'device-kid') { this.setState({ ...base, deviceStep: null }); this._setDevice('kid'); return; }
-    if (goal === 'device-parent') { this._setDevice('parent'); this.setState({ ...base, parentUnlocked: true, mode: 'parent' }); return; }
-    this.setState({ ...base, parentUnlocked: true, mode: 'parent' });   // 一般進家長 view
+    if (goal === 'device-parent') { this._setDevice('parent'); this.setState({ ...base, parentUnlocked: true, mode: 'parent', ...PARENT_START }); return; }
+    this.setState({ ...base, parentUnlocked: true, mode: 'parent', ...PARENT_START });   // 一般進家長 view · 強制起點:收件匣
   }
   pinDelete() { this.setState(st => ({ pinEntry: st.pinEntry.slice(0, -1), pinError: '' })); }
   pinCancel() { this.setState({ pinMode: null, pinEntry: '', pinStage: 1, pinError: '', pinGoal: 'view' }); }
@@ -388,7 +390,7 @@ class Component extends DCLogic {
   }
   _setDevice(mode) {
     try { localStorage.setItem('habitRank_device', mode); } catch (e) {}
-    this.setState({ deviceMode: mode, deviceStep: null, mode: mode === 'kid' ? 'kid' : 'parent', parentUnlocked: mode === 'parent', kidSwitchOpen: false });
+    this.setState({ deviceMode: mode, deviceStep: null, mode: mode === 'kid' ? 'kid' : 'parent', parentUnlocked: mode === 'parent', kidSwitchOpen: false, ...(mode === 'parent' ? PARENT_START : {}) });
   }
   // 長按版本號(僅孩子裝置)→ 家長 PIN → 切回家長模式
   verPressStart() { if (this.state.deviceMode !== 'kid') return; try { clearTimeout(this._verT); } catch (e) {} this._verT = setTimeout(() => this._verLong(), 2000); }
@@ -488,7 +490,11 @@ class Component extends DCLogic {
   _gLastDx() { return this._gLastX != null ? this._gLastX - this._gx0 : 0; }
   _gLastDy() { return this._gLastY != null ? this._gLastY - this._gy0 : 0; }
   _gReset() { this._gEl = null; this._gLock = null; this._gMode = null; this._gPullDist = 0; this._gLastX = null; this._gLastY = null; }
-  pGo(t) { this.setState({ pTab: t }); }
+  pGo(t) { this.setState({ pTab: t, pManage: null, pDetailKid: null }); }   // 切 L1 分頁時清掉 L2 狀態
+  pManageGo(k) { this.setState({ pManage: k }); }                           // 進管理子頁
+  pManageBack() { this.setState({ pManage: null }); }                       // 返回管理 hub
+  pOpenKidDetail(id) { this.setState({ pDetailKid: id }); if (id && id !== this.state.currentKidId) this.switchKid(id); } // 週報內點孩子名 → 詳情(必要時先切換載入)
+  pCloseKidDetail() { this.setState({ pDetailKid: null }); }
   // 小孩送出「做到」:建立 pending 事件,不立即入帳(等家長確認)。honestyEligible 任務 XP×1.5。
   submitCheckin(b) {
     this.setState(st => {
@@ -692,7 +698,7 @@ class Component extends DCLogic {
       kids, currentKidId, kidSwitchOpen, newKidName, newKidAvatar,
       pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm,
       kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage,
-      deviceMode, deviceStep, pinGoal, ...persist } = this.state;
+      deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
     // 防呆:孩子裝置若因 bug 進到家長 view,一律導回孩子頁
     if (this.state.deviceMode === 'kid' && this.state.mode === 'parent') { this.setState({ mode: 'kid', parentUnlocked: false }); }
@@ -1193,10 +1199,13 @@ class Component extends DCLogic {
     // 家長待確認:真實的 pending 打卡事件(小孩送出的)
     const nowMs = Date.now();
     const pendingEvents = (S.checkinEvents || []).filter(e => e.verdict === 'pending');
-    const pItems = pendingEvents.map(e => ({ id: e.id, label: e.label, reward: e.coin, icon: e.icon,
+    const pItems = pendingEvents.map(e => ({ id: e.id, label: e.label, reward: e.coin, icon: e.icon, kind: e.kind,
       note: (e.kind === 'habit' ? '關鍵習慣' : '每日任務') + (e.honest ? ' · 誠實回報' : '') + (e.appeal ? ' · 🙋 申訴,請再看' : ''), wait: true, ok: false, no: false,
       onOk: () => this.confirmCheckin(e.id, true), onNo: () => this.askReject(e.id) }));   // #2:退回走二次確認
     const pWait = pItems.length;
+    // 收件匣分區:待確認打卡(關鍵習慣)/ 待確認任務(每日任務)。申訴第二波暫混在打卡區(note 標「🙋 申訴」)
+    const pHabitItems = pItems.filter(it => it.kind === 'habit');
+    const pTaskItems = pItems.filter(it => it.kind === 'task');
     // #2:今天被退回的項目 → 家長可「撤回退回(看錯了)」。看「該行為當天最新事件」是否 rejected(更正後最新變 approved → 自動消失)
     const rejectedItems = []; const seenRej = {};
     (S.checkinEvents || []).forEach(e => {
@@ -1208,6 +1217,8 @@ class Component extends DCLogic {
         rejectedItems.push({ label: latest.label || lib.label, icon: latest.icon || lib.icon, onUndo: () => this.undoReject(e.behaviorId, today) });
       }
     });
+    const pendingProps = (S.covenant.proposals || []).filter(p => p.status === 'pending').length;
+    const inboxEmpty = pWait === 0 && pendingProps === 0 && rejectedItems.length === 0; // 四區全空 → 空狀態
     const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
     const wr = weeklyReport(S.checkinEvents, today, S.taskOn); // B6:真實週報 + 一句話
     const probe = dataProbe(S.checkinEvents, today); // #3:反向指標數據自查
@@ -1225,8 +1236,12 @@ class Component extends DCLogic {
     // 畢業證書
     const gradItem = S.gradModal ? LIB.find(t => t.id === S.gradModal) : null;
     const gradDays = S.gradModal ? new Set((S.checkinEvents || []).filter(e => e.behaviorId === S.gradModal && e.verdict !== 'rejected').map(e => e.date)).size : 0;
-    const gradCert = { show: !!gradItem, name: gradItem ? gradItem.label : '', icon: gradItem ? gradItem.icon : 'i-crown',
+    const gradCert = { show: S.mode === 'kid' && !!gradItem, name: gradItem ? gradItem.label : '', icon: gradItem ? gradItem.icon : 'i-crown',
       date: gradItem ? (S.graduatedAt[S.gradModal] || today) : '', days: gradDays, onClose: () => this.closeGrad() };
+    // B8:核心習慣數量(啟用中的 type:'habit'),> 7 顯示警告
+    const coreHabitsAll = LIB.filter(t => t.type === 'habit' && S.taskOn[t.id]);
+    const coreHabitCount = coreHabitsAll.length;
+    const coreHabitList = coreHabitsAll.map(h => ({ label: h.label, icon: h.icon, meta: h.dom + ' · +' + h.xp + 'XP · ' + h.coin + '幣' }));
     const K = S.kTab, isKid = S.mode === 'kid';
     return {
       isKid, isParent: S.mode === 'parent', toKid: () => this.goKid(), toParent: () => this.enterParent(),
@@ -1297,7 +1312,7 @@ class Component extends DCLogic {
       probeLatency: probe.latN ? ((probe.latAvg >= 0 ? '晚 ' + probe.latAvg : '早 ' + (-probe.latAvg)) + ' 分 · ' + probe.latN + ' 筆') : '尚無資料',
       probeSession: probe.sesN ? (probe.sesAvg + ' 秒 · ' + probe.sesN + ' 次') : '尚無資料',
       probeRecovery: probe.rejN ? (probe.recovRate + '% · ' + probe.rejN + ' 次退回') : '尚無退回',
-      onAddHabit: () => this.setState({ mode: 'parent', pTab: 'rewards' }),
+      onAddHabit: () => this.setState({ mode: 'parent', pTab: 'manage', pManage: 'tasks', pDetailKid: null }),
       ...todayRank,
       dayMode: mode,
       onDayHome: () => this.setDayMode('home'), onDaySchool: () => this.setDayMode('school'), onDayOut: () => this.setDayMode('out'),
@@ -1318,10 +1333,33 @@ class Component extends DCLogic {
       onMissEnv: () => this.setMissReason('environment'), onMissMood: () => this.setMissReason('mood'), onMissForgot: () => this.setMissReason('forgot'), onMissSkip: () => this.skipMissReason(),
       pauses: S.pauses || 0, pausing: !!S.pausing, notPausing: !S.pausing,
       onPauseStart: () => this.startPause(), onResist: () => this.resistImpulse(), onPauseCancel: () => this.cancelPause(),
-      pTab: S.pTab, pIsPending: S.pTab === 'pending', pIsReport: S.pTab === 'report', pIsRewards: S.pTab === 'rewards', pIsCovenant: S.pTab === 'covenant',
-      pvP: () => this.pGo('pending'), pvR: () => this.pGo('report'), pvG: () => this.pGo('rewards'), pvC: () => this.pGo('covenant'),
-      pcP: S.pTab === 'pending' ? ACC : '#8890a3', pcR: S.pTab === 'report' ? ACC : '#8890a3', pcG: S.pTab === 'rewards' ? ACC : '#8890a3', pcC: S.pTab === 'covenant' ? ACC : '#8890a3',
-      pbP: S.pTab === 'pending' ? '#eef0ff' : 'transparent', pbR: S.pTab === 'report' ? '#eef0ff' : 'transparent', pbG: S.pTab === 'rewards' ? '#eef0ff' : 'transparent', pbC: S.pTab === 'covenant' ? '#eef0ff' : 'transparent',
+      // ===== 家長端 L1 導覽:收件匣 · 週報 · 管理 =====
+      pIsInbox: S.pTab === 'inbox', pIsReport: S.pTab === 'report', pIsManage: S.pTab === 'manage',
+      pvInbox: () => this.pGo('inbox'), pvReport: () => this.pGo('report'), pvManage: () => this.pGo('manage'),
+      pcInbox: S.pTab === 'inbox' ? ACC : '#8890a3', pcReport: S.pTab === 'report' ? ACC : '#8890a3', pcManage: S.pTab === 'manage' ? ACC : '#8890a3',
+      pbInbox: S.pTab === 'inbox' ? '#eef0ff' : 'transparent', pbReport: S.pTab === 'report' ? '#eef0ff' : 'transparent', pbManage: S.pTab === 'manage' ? '#eef0ff' : 'transparent',
+      // 收件匣分區資料 + 空狀態
+      pHabitItems, pTaskItems, pHasHabitItems: pHabitItems.length > 0, pHasTaskItems: pTaskItems.length > 0, inboxEmpty,
+      // ===== 家長端 L2:管理 hub + 子頁 =====
+      pManageHub: S.pTab === 'manage' && !S.pManage,     // hub(六入口)
+      pmTasks: S.pManage === 'tasks', pmHabits: S.pManage === 'habits', pmShop: S.pManage === 'shop',
+      pmPledges: S.pManage === 'pledges', pmSettings: S.pManage === 'settings',
+      onManageTasks: () => this.pManageGo('tasks'), onManageHabits: () => this.pManageGo('habits'), onManageShop: () => this.pManageGo('shop'),
+      onManagePledges: () => this.pManageGo('pledges'), onManageKids: () => this.openKidSwitch(), onManageSettings: () => this.pManageGo('settings'),
+      onManageBack: () => this.pManageBack(),
+      // 核心習慣管理(Phase 1:唯讀清單 + 數量警告)
+      coreHabitList: coreHabitList, coreHabitCount: coreHabitCount, coreOverflow: coreHabitCount > 7,
+      // ===== 週報內:孩子詳情(一次一人,不並排)=====
+      reportKids: (S.kids || []).map(k => ({ id: k.id, name: k.name, avatar: k.avatar || '🦊', isCurrent: k.id === S.currentKidId,
+        chipBg: k.id === S.currentKidId ? '#eef0ff' : '#fff', chipBorder: k.id === S.currentKidId ? '#5b5bd6' : '#e7eaf2',
+        chipColor: k.id === S.currentKidId ? '#4a4ac2' : '#5a6070', onOpen: () => this.pOpenKidDetail(k.id) })),
+      hasReportKids: (S.kids || []).length > 0,
+      pReportSummary: S.pTab === 'report' && !S.pDetailKid,
+      pDetailShow: S.pTab === 'report' && !!S.pDetailKid, onCloseDetail: () => this.pCloseKidDetail(),
+      detailName: (curKid && curKid.name) || '小孩', detailAvatar: (curKid && curKid.avatar) || '🙂',
+      detailXp: S.xp + '', detailCoins: S.coins + '', detailRank: todayRank.rankName, detailRankProg: todayRank.rankProg,
+      detailRankPct: todayRank.rankPct, detailRankNext: todayRank.rankNextLabel, detailRate: (wr.k1Label || '—'),
+      detailTrust: trustLines, detailHasTrust: trustLines.length > 0,
       covVersion: S.covenant.version, newTerm: S.newTerm, onNewTerm: (e) => this.setNewTerm(e), onAddTerm: () => this.addTerm(),
       covTerms: S.covenant.terms.map((t, i) => ({ text: t, onDel: () => this.delTerm(i) })),
       schedWeekday: S.covenant.schedules.weekday, schedWeekend: S.covenant.schedules.weekend,
@@ -1363,8 +1401,8 @@ class Component extends DCLogic {
       onDoReject: () => this.doReject(), onCancelReject: () => this.cancelReject(),
       nudgeShow: nudgeCount > 0, nudgeLabel: '有 ' + nudgeCount + ' 項打卡超過一天還沒看，孩子在等你 👀',
       onUseProtect: () => this.useProtect(), saved: S.saved, protectIdle: !S.saved,
-      openCeleb: () => this.openCeleb(), closeCeleb: () => this.closeCeleb(), celebrate: S.celebrate,
-      fxShow: !!S.fx, fxName: S.fx ? S.fx.name : '', fxIcon: S.fx ? S.fx.icon : 'i-gift', fxGrad: S.fx ? S.fx.gradient : GRAD, fxSpent: S.fx ? S.fx.spent : 0, fxLeft: S.fx ? S.fx.left : 0, fxClose: () => this.closeFx(),
+      openCeleb: () => this.openCeleb(), closeCeleb: () => this.closeCeleb(), celebrate: isKid && S.celebrate,
+      fxShow: isKid && !!S.fx, fxName: S.fx ? S.fx.name : '', fxIcon: S.fx ? S.fx.icon : 'i-gift', fxGrad: S.fx ? S.fx.gradient : GRAD, fxSpent: S.fx ? S.fx.spent : 0, fxLeft: S.fx ? S.fx.left : 0, fxClose: () => this.closeFx(),
       confetti,
     };
   }

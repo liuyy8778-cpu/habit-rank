@@ -3904,7 +3904,6 @@
             <div style="padding:6px 14px;border-radius:10px;background:#fff;font-weight:700;font-size:13px;color:#1a1f2e;box-shadow:0 1px 3px rgba(20,25,50,.1);white-space:nowrap">家長</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <div style="display:flex;align-items:center;gap:5px;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:11px;padding:6px 10px"><span style="color:#e0a53a;display:flex"><svg style="width:15px;height:15px"><use href="#i-coin"></use></svg></span><span style="font:800 13px 'Baloo 2';color:#1a1f2e">{{ coins }}</span></div>
             <sc-if value="{{ kidSwitchable }}">
               <button onclick="{{ onOpenKidSwitch }}" style="display:flex;align-items:center;gap:6px;border:1px solid rgba(20,25,50,.07);background:#fff;border-radius:11px;padding:6px 11px;cursor:pointer"><span style="font-size:15px">{{ currentKidAvatar }}</span><span style="font-size:12.5px;font-weight:700;color:#1a1f2e">{{ currentKidName }}</span><span style="font-size:9px;color:#8890a3">▾</span></button>
             </sc-if>
@@ -3915,31 +3914,51 @@
         </div>
         <div class="scroll" style="padding:100px 18px 30px">
           <div style="display:flex;gap:4px;background:#e5e8f1;border-radius:14px;padding:4px;margin-bottom:18px">
-            <button onclick="{{ pvP }}" style="flex:1;border:0;padding:9px 4px;border-radius:10px;font:700 12px 'Noto Sans TC';cursor:pointer;color:{{ pcP }};background:{{ pbP }}">待確認</button>
-            <button onclick="{{ pvR }}" style="flex:1;border:0;padding:9px 4px;border-radius:10px;font:700 12px 'Noto Sans TC';cursor:pointer;color:{{ pcR }};background:{{ pbR }}">週報</button>
-            <button onclick="{{ pvG }}" style="flex:1;border:0;padding:9px 4px;border-radius:10px;font:700 12px 'Noto Sans TC';cursor:pointer;color:{{ pcG }};background:{{ pbG }}">任務獎勵</button>
-            <button onclick="{{ pvC }}" style="flex:1;border:0;padding:9px 4px;border-radius:10px;font:700 12px 'Noto Sans TC';cursor:pointer;color:{{ pcC }};background:{{ pbC }}">公約</button>
+            <button onclick="{{ pvInbox }}" style="flex:1;border:0;padding:9px 4px;border-radius:10px;font:700 12.5px 'Noto Sans TC';cursor:pointer;color:{{ pcInbox }};background:{{ pbInbox }}">收件匣</button>
+            <button onclick="{{ pvReport }}" style="flex:1;border:0;padding:9px 4px;border-radius:10px;font:700 12.5px 'Noto Sans TC';cursor:pointer;color:{{ pcReport }};background:{{ pbReport }}">週報</button>
+            <button onclick="{{ pvManage }}" style="flex:1;border:0;padding:9px 4px;border-radius:10px;font:700 12.5px 'Noto Sans TC';cursor:pointer;color:{{ pcManage }};background:{{ pbManage }}">管理</button>
           </div>
-          <sc-if value="{{ pIsPending }}" hint-placeholder-val="{{ true }}">
+          <sc-if value="{{ pIsInbox }}" hint-placeholder-val="{{ true }}">
             <div>
+              <sc-if value="{{ inboxEmpty }}">
+                <div style="text-align:center;background:#e7f6f0;border-radius:20px;padding:34px 18px;animation:popIn .4s both"><div style="font-size:40px;margin-bottom:8px">✓</div><div style="font-weight:800;font-size:16px;color:#2f6b53">今天沒有需要你的事</div><div style="font-size:12.5px;color:#5a8a68;margin-top:5px;line-height:1.5">孩子的進度交給結構自動跑。<br>想看成效,到「週報」——不用盯每天。</div></div>
+              </sc-if>
               <sc-if value="{{ nudgeShow }}"><div style="display:flex;align-items:center;gap:8px;background:#fbf3e2;border:1px solid #f0e2c0;border-radius:14px;padding:11px 13px;margin-bottom:12px;font-size:12px;color:#9c6b16;line-height:1.4">{{ nudgeLabel }}</div></sc-if>
-              <div style="font-size:12.5px;color:#8890a3;margin:0 2px 12px">孩子按了「我做到了」· <span style="color:#5b5bd6;font-weight:700">{{ pWaitLabel }}</span></div>
-              <sc-if value="{{ pHasPending }}"><button onclick="{{ onApproveAll }}" style="display:flex;align-items:center;justify-content:center;gap:7px;width:100%;border:0;border-radius:14px;padding:13px;margin-bottom:13px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 14px 'Noto Sans TC';cursor:pointer;box-shadow:0 8px 16px -8px rgba(91,91,214,.55)" style-active="transform:scale(.98)"><svg style="width:18px;height:18px"><use href="#i-check"></use></svg>一鍵全過 · {{ pWait }} 項</button></sc-if>
-              <sc-if value="{{ pAllDone }}"><div style="text-align:center;background:#e7f6f0;border-radius:18px;padding:26px 16px;animation:popIn .4s both"><div style="font-size:34px;margin-bottom:6px">🎉</div><div style="font-weight:800;font-size:15px;color:#2f6b53">今天沒有待確認的項目</div><div style="font-size:12px;color:#5a8a68;margin-top:3px">辛苦了,家長也需要被獎勵 ✨</div></div></sc-if>
-              <div style="display:flex;flex-direction:column;gap:11px">
-                <sc-for list="{{ pItems }}" as="it" hint-placeholder-count="3">
-                  <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:15px">
-                    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:13px">
-                      <div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#{{ it.icon }}"></use></svg></div>
-                      <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14.5px;color:#1a1f2e">{{ it.label }}</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">孩子回報：{{ it.note }}</div></div>
-                      <div style="font:700 12px 'Space Grotesk';color:#cf9a2f;white-space:nowrap">+{{ it.reward }}幣</div>
+              <sc-if value="{{ pHasHabitItems }}">
+                <div style="display:flex;align-items:center;gap:7px;margin:0 2px 10px"><span style="color:#5b5bd6;display:flex"><svg style="width:16px;height:16px"><use href="#i-shield"></use></svg></span><span style="font-weight:800;font-size:13.5px;color:#1a1f2e">待確認打卡 · 關鍵習慣</span></div>
+                <sc-if value="{{ pHasPending }}"><button onclick="{{ onApproveAll }}" style="display:flex;align-items:center;justify-content:center;gap:7px;width:100%;border:0;border-radius:14px;padding:12px;margin-bottom:12px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer;box-shadow:0 8px 16px -8px rgba(91,91,214,.55)" style-active="transform:scale(.98)"><svg style="width:17px;height:17px"><use href="#i-check"></use></svg>一鍵全過 · {{ pWait }} 項</button></sc-if>
+                <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:22px">
+                  <sc-for list="{{ pHabitItems }}" as="it" hint-placeholder-count="2">
+                    <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:15px">
+                      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:13px">
+                        <div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#{{ it.icon }}"></use></svg></div>
+                        <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14.5px;color:#1a1f2e">{{ it.label }}</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">孩子回報：{{ it.note }}</div></div>
+                        <div style="font:700 12px 'Space Grotesk';color:#cf9a2f;white-space:nowrap">+{{ it.reward }}幣</div>
+                      </div>
+                      <sc-if value="{{ it.wait }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:9px"><button onclick="{{ it.onOk }}" style="flex:1;border:0;border-radius:12px;padding:11px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.97)">通過，入帳</button><button onclick="{{ it.onNo }}" style="border:1.5px solid #e7eaf2;background:none;border-radius:12px;padding:11px 16px;color:#8890a3;font:600 13px 'Noto Sans TC';cursor:pointer">退回</button></div></sc-if>
+                      <sc-if value="{{ it.ok }}"><div style="display:flex;align-items:center;gap:8px;background:#e7f6f0;border-radius:12px;padding:10px 13px;animation:popIn .35s both"><span style="color:#2f8a6a;display:flex"><svg style="width:18px;height:18px"><use href="#i-check"></use></svg></span><span style="font-weight:700;font-size:13px;color:#2f6b53">已通過 · +{{ it.reward }}幣入帳</span></div></sc-if>
+                      <sc-if value="{{ it.no }}"><div style="display:flex;align-items:center;gap:8px;background:#f2f3f7;border-radius:12px;padding:10px 13px;animation:popIn .35s both"><span style="color:#8890a3;display:flex"><svg style="width:15px;height:15px"><use href="#i-close"></use></svg></span><span style="font-weight:700;font-size:13px;color:#6b7180">已退回 · 明天再試</span></div></sc-if>
                     </div>
-                    <sc-if value="{{ it.wait }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:9px"><button onclick="{{ it.onOk }}" style="flex:1;border:0;border-radius:12px;padding:11px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.97)">通過，入帳</button><button onclick="{{ it.onNo }}" style="border:1.5px solid #e7eaf2;background:none;border-radius:12px;padding:11px 16px;color:#8890a3;font:600 13px 'Noto Sans TC';cursor:pointer">退回</button></div></sc-if>
-                    <sc-if value="{{ it.ok }}"><div style="display:flex;align-items:center;gap:8px;background:#e7f6f0;border-radius:12px;padding:10px 13px;animation:popIn .35s both"><span style="color:#2f8a6a;display:flex"><svg style="width:18px;height:18px"><use href="#i-check"></use></svg></span><span style="font-weight:700;font-size:13px;color:#2f6b53">已通過 · +{{ it.reward }}幣入帳</span></div></sc-if>
-                    <sc-if value="{{ it.no }}"><div style="display:flex;align-items:center;gap:8px;background:#f2f3f7;border-radius:12px;padding:10px 13px;animation:popIn .35s both"><span style="color:#8890a3;display:flex"><svg style="width:15px;height:15px"><use href="#i-close"></use></svg></span><span style="font-weight:700;font-size:13px;color:#6b7180">已退回 · 明天再試</span></div></sc-if>
-                  </div>
-                </sc-for>
-              </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ pHasTaskItems }}">
+                <div style="display:flex;align-items:center;gap:7px;margin:0 2px 10px"><span style="color:#35b28a;display:flex"><svg style="width:16px;height:16px"><use href="#i-check"></use></svg></span><span style="font-weight:800;font-size:13.5px;color:#1a1f2e">待確認任務 · 每日任務</span></div>
+                <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:22px">
+                  <sc-for list="{{ pTaskItems }}" as="it" hint-placeholder-count="2">
+                    <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:15px">
+                      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:13px">
+                        <div style="width:38px;height:38px;border-radius:11px;background:#eaf6f0;color:#2f8a6a;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#{{ it.icon }}"></use></svg></div>
+                        <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14.5px;color:#1a1f2e">{{ it.label }}</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">孩子回報：{{ it.note }}</div></div>
+                        <div style="font:700 12px 'Space Grotesk';color:#cf9a2f;white-space:nowrap">+{{ it.reward }}幣</div>
+                      </div>
+                      <sc-if value="{{ it.wait }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:9px"><button onclick="{{ it.onOk }}" style="flex:1;border:0;border-radius:12px;padding:11px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.97)">通過，入帳</button><button onclick="{{ it.onNo }}" style="border:1.5px solid #e7eaf2;background:none;border-radius:12px;padding:11px 16px;color:#8890a3;font:600 13px 'Noto Sans TC';cursor:pointer">退回</button></div></sc-if>
+                      <sc-if value="{{ it.ok }}"><div style="display:flex;align-items:center;gap:8px;background:#e7f6f0;border-radius:12px;padding:10px 13px;animation:popIn .35s both"><span style="color:#2f8a6a;display:flex"><svg style="width:18px;height:18px"><use href="#i-check"></use></svg></span><span style="font-weight:700;font-size:13px;color:#2f6b53">已通過 · +{{ it.reward }}幣入帳</span></div></sc-if>
+                      <sc-if value="{{ it.no }}"><div style="display:flex;align-items:center;gap:8px;background:#f2f3f7;border-radius:12px;padding:10px 13px;animation:popIn .35s both"><span style="color:#8890a3;display:flex"><svg style="width:15px;height:15px"><use href="#i-close"></use></svg></span><span style="font-weight:700;font-size:13px;color:#6b7180">已退回 · 明天再試</span></div></sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
               <sc-if value="{{ hasRejected }}">
                 <div style="margin-top:20px">
                   <div style="display:flex;align-items:center;gap:7px;margin:0 2px 10px"><span style="font-size:15px">↩️</span><span style="font-weight:800;font-size:13.5px;color:#1a1f2e">今天退回的 · 看錯了可撤回</span></div>
@@ -3972,21 +3991,73 @@
           </sc-if>
           <sc-if value="{{ pIsReport }}">
             <div style="animation:cardIn .4s both">
-              <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:20px;padding:18px;margin-bottom:14px">
-                <div style="font-weight:800;font-size:14px;color:#1a1f2e;margin-bottom:16px">本週在約定內的比例</div>
-                <div style="display:flex;align-items:flex-end;gap:8px;height:78px;margin-bottom:9px"><sc-for list="{{ week }}" as="w" hint-placeholder-count="7"><div style="flex:1;width:100%;height:{{ w.h }};border-radius:6px;background:{{ w.barBg }}"></div></sc-for></div>
-                <div style="display:flex;gap:8px"><sc-for list="{{ week }}" as="w"><span style="flex:1;text-align:center;font-size:10.5px;color:#8890a3">{{ w.label }}</span></sc-for></div>
-              </div>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-                <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#1a1f2e">{{ reportK1 }}</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">準時交機</div></div>
-                <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#35b28a">{{ reportHonest }}</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">誠實回報</div></div>
-                <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#5b5bd6">{{ reportStreak }}</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">目前連續</div></div>
-              </div>
-              <div style="background:#eef0ff;border-radius:16px;padding:14px 16px;margin-top:14px;font-size:12.5px;color:#4a4ac2;line-height:1.65">💬 {{ reportLine }}</div>
+              <sc-if value="{{ hasReportKids }}">
+                <div style="font-size:12px;color:#8890a3;margin:0 2px 9px">點孩子名字看完整數據 · 一次看一個</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+                  <sc-for list="{{ reportKids }}" as="rk" hint-placeholder-count="1">
+                    <button onclick="{{ rk.onOpen }}" style="display:flex;align-items:center;gap:6px;border:1.5px solid {{ rk.chipBorder }};background:{{ rk.chipBg }};border-radius:12px;padding:8px 13px;color:{{ rk.chipColor }};font:700 13px 'Noto Sans TC';cursor:pointer"><span style="font-size:15px">{{ rk.avatar }}</span>{{ rk.name }} →</button>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ pReportSummary }}" hint-placeholder-val="{{ true }}">
+                <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:20px;padding:18px;margin-bottom:14px">
+                  <div style="font-weight:800;font-size:14px;color:#1a1f2e;margin-bottom:16px">本週在約定內的比例</div>
+                  <div style="display:flex;align-items:flex-end;gap:8px;height:78px;margin-bottom:9px"><sc-for list="{{ week }}" as="w" hint-placeholder-count="7"><div style="flex:1;width:100%;height:{{ w.h }};border-radius:6px;background:{{ w.barBg }}"></div></sc-for></div>
+                  <div style="display:flex;gap:8px"><sc-for list="{{ week }}" as="w"><span style="flex:1;text-align:center;font-size:10.5px;color:#8890a3">{{ w.label }}</span></sc-for></div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+                  <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#1a1f2e">{{ reportK1 }}</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">準時交機</div></div>
+                  <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#35b28a">{{ reportHonest }}</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">誠實回報</div></div>
+                  <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px 10px;text-align:center"><div style="font:800 20px 'Baloo 2';color:#5b5bd6">{{ reportStreak }}</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">目前連續</div></div>
+                </div>
+                <div style="background:#eef0ff;border-radius:16px;padding:14px 16px;margin-top:14px;font-size:12.5px;color:#4a4ac2;line-height:1.65">💬 {{ reportLine }}</div>
+              </sc-if>
+              <sc-if value="{{ pDetailShow }}">
+                <div style="animation:cardIn .35s both">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+                    <span style="font-size:26px">{{ detailAvatar }}</span>
+                    <div style="flex:1;min-width:0"><div style="font-weight:900;font-size:17px;color:#1a1f2e">{{ detailName }}</div><div style="font-size:11.5px;color:#8890a3">完整數據 · 只有你看得到</div></div>
+                    <button onclick="{{ onCloseDetail }}" style="border:1.5px solid #e7eaf2;background:#fff;border-radius:11px;padding:8px 13px;color:#8890a3;font:700 12px 'Noto Sans TC';cursor:pointer;white-space:nowrap">← 摘要</button>
+                  </div>
+                  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px">
+                    <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px;text-align:center"><div style="font:800 22px 'Baloo 2';color:#5b5bd6">{{ detailXp }}</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">總 XP</div></div>
+                    <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px;text-align:center"><div style="font:800 22px 'Baloo 2';color:#e0a53a">{{ detailCoins }}</div><div style="font-size:10.5px;color:#8890a3;margin-top:3px">目前金幣</div></div>
+                  </div>
+                  <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:16px;margin-bottom:12px">
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px"><span style="font-weight:800;font-size:14px;color:#1a1f2e">段位 · {{ detailRank }}</span><span style="font:700 11.5px 'Space Grotesk';color:#8890a3">{{ detailRankProg }}</span></div>
+                    <div style="height:8px;background:#eef0f6;border-radius:5px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:{{ detailRankPct }};background:linear-gradient(90deg,#7b7bf0,#5b5bd6);border-radius:5px"></div></div>
+                    <div style="font-size:11px;color:#8890a3">{{ detailRankNext }}</div>
+                  </div>
+                  <sc-if value="{{ detailHasTrust }}">
+                    <div style="font-weight:800;font-size:13.5px;color:#1a1f2e;margin:4px 2px 10px">關鍵習慣 · 信任</div>
+                    <div style="display:flex;flex-direction:column;gap:9px">
+                      <sc-for list="{{ detailTrust }}" as="tl" hint-placeholder-count="2">
+                        <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:15px;padding:13px 14px">
+                          <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px"><div style="width:30px;height:30px;border-radius:9px;background:{{ tl.badgeBg }};color:{{ tl.badgeColor }};display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:16px;height:16px"><use href="#{{ tl.icon }}"></use></svg></div><span style="flex:1;font-weight:700;font-size:13px;color:#1a1f2e">{{ tl.label }}</span><span style="font:700 11px 'Noto Sans TC';color:{{ tl.badgeColor }}">{{ tl.levelName }}</span></div>
+                          <div style="height:6px;background:#eef0f6;border-radius:4px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:{{ tl.progPct }};background:linear-gradient(90deg,#7b7bf0,#5b5bd6);border-radius:4px"></div></div>
+                          <div style="font-size:11px;color:#8890a3">{{ tl.rateLabel }}</div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
             </div>
           </sc-if>
-          <sc-if value="{{ pIsRewards }}">
+          <sc-if value="{{ pIsManage }}">
+          <sc-if value="{{ pManageHub }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:10px;animation:cardIn .4s both">
+              <button onclick="{{ onManageTasks }}" style="display:flex;align-items:center;gap:12px;width:100%;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:15px 16px;cursor:pointer;text-align:left"><div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#i-brief"></use></svg></div><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:#1a1f2e">任務池</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">哪些自選任務對孩子生效</div></div><span style="color:#c2c8d6;font-size:20px">›</span></button>
+              <button onclick="{{ onManageHabits }}" style="display:flex;align-items:center;gap:12px;width:100%;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:15px 16px;cursor:pointer;text-align:left"><div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#i-shield"></use></svg></div><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:#1a1f2e">核心習慣</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">與孩子的約定 · 每日習慣</div></div><span style="color:#c2c8d6;font-size:20px">›</span></button>
+              <button onclick="{{ onManageShop }}" style="display:flex;align-items:center;gap:12px;width:100%;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:15px 16px;cursor:pointer;text-align:left"><div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#i-gift"></use></svg></div><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:#1a1f2e">商城</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">獎勵商品 · 上下架</div></div><span style="color:#c2c8d6;font-size:20px">›</span></button>
+              <button onclick="{{ onManagePledges }}" style="display:flex;align-items:center;gap:12px;width:100%;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:15px 16px;cursor:pointer;text-align:left"><div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#i-heart"></use></svg></div><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:#1a1f2e">家長承諾</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">公約雙向 · 你也對孩子承諾</div></div><span style="color:#c2c8d6;font-size:20px">›</span></button>
+              <button onclick="{{ onManageKids }}" style="display:flex;align-items:center;gap:12px;width:100%;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:15px 16px;cursor:pointer;text-align:left"><div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#i-user"></use></svg></div><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:#1a1f2e">孩子管理</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">新增 · 改名 · 重設密碼</div></div><span style="color:#c2c8d6;font-size:20px">›</span></button>
+              <button onclick="{{ onManageSettings }}" style="display:flex;align-items:center;gap:12px;width:100%;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:15px 16px;cursor:pointer;text-align:left"><div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#i-gear"></use></svg></div><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:#1a1f2e">家庭設定</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">公約 · 雲端 · 數據 · 重置</div></div><span style="color:#c2c8d6;font-size:20px">›</span></button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ pmTasks }}">
             <div style="animation:cardIn .4s both">
+              <button onclick="{{ onManageBack }}" style="border:0;background:none;padding:4px 2px;margin-bottom:14px;color:#8890a3;font:700 13px 'Noto Sans TC';cursor:pointer">← 返回管理</button>
               <div style="font-weight:800;font-size:14.5px;color:#1a1f2e;margin:0 2px 4px">任務庫</div>
               <div style="font-size:12.5px;color:#8890a3;margin:0 2px 12px">開關決定哪些任務對孩子生效</div>
               <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:22px">
@@ -3998,6 +4069,11 @@
                   </div>
                 </sc-for>
               </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ pmShop }}">
+            <div style="animation:cardIn .4s both">
+              <button onclick="{{ onManageBack }}" style="border:0;background:none;padding:4px 2px;margin-bottom:14px;color:#8890a3;font:700 13px 'Noto Sans TC';cursor:pointer">← 返回管理</button>
               <div style="font-weight:800;font-size:14.5px;color:#1a1f2e;margin:0 2px 4px">獎勵商品</div>
               <div style="font-size:12.5px;color:#8890a3;margin:0 2px 12px">開關決定孩子在商城看不看得到</div>
               <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
@@ -4012,8 +4088,46 @@
               <button style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:14px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer">+ 新增商品</button>
             </div>
           </sc-if>
-          <sc-if value="{{ pIsCovenant }}">
+          <sc-if value="{{ pmHabits }}">
             <div style="animation:cardIn .4s both">
+              <button onclick="{{ onManageBack }}" style="border:0;background:none;padding:4px 2px;margin-bottom:14px;color:#8890a3;font:700 13px 'Noto Sans TC';cursor:pointer">← 返回管理</button>
+              <div style="display:flex;align-items:flex-start;gap:8px;background:#fbf3e2;border:1px solid #f0e2c0;border-radius:14px;padding:12px 13px;margin-bottom:14px;font-size:12px;color:#9c6b16;line-height:1.5">🤝 核心習慣是與孩子的約定,新增前請先在家庭會議取得同意。</div>
+              <sc-if value="{{ coreOverflow }}"><div style="display:flex;align-items:flex-start;gap:8px;background:#fdf3f3;border:1px solid #f0d8d8;border-radius:14px;padding:12px 13px;margin-bottom:14px;font-size:12px;color:#b5504f;line-height:1.5">⚠️ 清單越長,每一項越難堅持。考慮讓一項畢業?</div></sc-if>
+              <div style="font-weight:800;font-size:14px;color:#1a1f2e;margin:0 2px 10px">目前核心習慣 · {{ coreHabitCount }} 項</div>
+              <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:12px">
+                <sc-for list="{{ coreHabitList }}" as="ch" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:12px 14px">
+                    <div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#{{ ch.icon }}"></use></svg></div>
+                    <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px;color:#1a1f2e">{{ ch.label }}</div><div style="font:700 11px 'Space Grotesk';color:#8890a3;margin-top:2px">{{ ch.meta }}</div></div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="font-size:11.5px;color:#a6adbe;line-height:1.5;margin:0 2px">新增 / 編輯 / 封存核心習慣即將開放(生效日最快隔天)。基線觀察期間先不改動核心清單,避免影響數據校準。</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ pmPledges }}">
+            <div style="animation:cardIn .4s both">
+              <button onclick="{{ onManageBack }}" style="border:0;background:none;padding:4px 2px;margin-bottom:14px;color:#8890a3;font:700 13px 'Noto Sans TC';cursor:pointer">← 返回管理</button>
+              <div style="font-weight:800;font-size:14.5px;color:#1a1f2e;margin:0 2px 4px">家長的承諾</div>
+              <div style="font-size:12px;color:#8890a3;line-height:1.5;margin:0 2px 14px">公約是雙向的。寫下你對孩子的承諾(例:晚餐時間不碰手機),孩子看得到你今天做到沒——誠實回報對大人一樣適用。</div>
+              <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+                <sc-for list="{{ covPledges }}" as="pl" hint-placeholder-count="0">
+                  <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:13px;padding:11px 13px">
+                    <span style="flex:1;font-size:13px;color:#1a1f2e;line-height:1.45">{{ pl.text }}</span>
+                    <button onclick="{{ pl.onToggle }}" style="display:flex;align-items:center;gap:6px;border:0;border-radius:10px;padding:7px 10px;background:{{ pl.toggleBg }};color:{{ pl.toggleColor }};font:700 11.5px 'Noto Sans TC';cursor:pointer;white-space:nowrap"><span style="width:7px;height:7px;border-radius:4px;background:{{ pl.toggleDot }}"></span>{{ pl.toggleLabel }}</button>
+                    <button onclick="{{ pl.onDel }}" style="border:0;background:none;color:#c2c8d6;font-size:18px;line-height:1;cursor:pointer;flex:none">×</button>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:8px">
+                <input value="{{ newPledge }}" oninput="{{ onNewPledge }}" placeholder="新增一條家長承諾…" style="flex:1;border:1.5px solid #dfe3ef;border-radius:12px;padding:11px 13px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e">
+                <button onclick="{{ onAddPledge }}" style="border:0;border-radius:12px;padding:11px 18px;background:#eef0ff;color:#4a4ac2;font:700 13px 'Noto Sans TC';cursor:pointer">加入</button>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ pmSettings }}">
+            <div style="animation:cardIn .4s both">
+              <button onclick="{{ onManageBack }}" style="border:0;background:none;padding:4px 2px;margin-bottom:14px;color:#8890a3;font:700 13px 'Noto Sans TC';cursor:pointer">← 返回管理</button>
               <div style="font-size:12.5px;color:#8890a3;margin:0 2px 16px;line-height:1.5">全家一起定的規則、孩子有參與有簽名,遵守的意願完全不同。<span style="color:#5b5bd6;font-weight:700">第 {{ covVersion }} 版</span></div>
               <div style="font-weight:800;font-size:14px;color:#1a1f2e;margin:0 2px 10px">約定條款</div>
               <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
@@ -4048,24 +4162,6 @@
                 </div>
               </div>
               <button onclick="{{ onResign }}" style="width:100%;border:1.5px solid #e7eaf2;background:none;border-radius:13px;padding:12px;color:#8890a3;font:600 12.5px 'Noto Sans TC';cursor:pointer">修訂公約 · 重新簽署(版本 +1)</button>
-              <!-- B3:家長承諾(誠實回報原則對家長同樣適用) -->
-              <div style="margin-top:26px;border-top:1px dashed #e7eaf2;padding-top:18px">
-                <div style="font-weight:800;font-size:14px;color:#1a1f2e;margin:0 2px 4px">家長的承諾</div>
-                <div style="font-size:12px;color:#8890a3;line-height:1.5;margin:0 2px 12px">公約是雙向的。寫下你對孩子的承諾(例:晚餐時間不碰手機),孩子看得到你今天做到沒——誠實回報對大人一樣適用。</div>
-                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
-                  <sc-for list="{{ covPledges }}" as="pl" hint-placeholder-count="0">
-                    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:13px;padding:11px 13px">
-                      <span style="flex:1;font-size:13px;color:#1a1f2e;line-height:1.45">{{ pl.text }}</span>
-                      <button onclick="{{ pl.onToggle }}" style="display:flex;align-items:center;gap:6px;border:0;border-radius:10px;padding:7px 10px;background:{{ pl.toggleBg }};color:{{ pl.toggleColor }};font:700 11.5px 'Noto Sans TC';cursor:pointer;white-space:nowrap"><span style="width:7px;height:7px;border-radius:4px;background:{{ pl.toggleDot }}"></span>{{ pl.toggleLabel }}</button>
-                      <button onclick="{{ pl.onDel }}" style="border:0;background:none;color:#c2c8d6;font-size:18px;line-height:1;cursor:pointer;flex:none">×</button>
-                    </div>
-                  </sc-for>
-                </div>
-                <div style="display:flex;gap:8px;margin-bottom:8px">
-                  <input value="{{ newPledge }}" oninput="{{ onNewPledge }}" placeholder="新增一條家長承諾…" style="flex:1;border:1.5px solid #dfe3ef;border-radius:12px;padding:11px 13px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e">
-                  <button onclick="{{ onAddPledge }}" style="border:0;border-radius:12px;padding:11px 18px;background:#eef0ff;color:#4a4ac2;font:700 13px 'Noto Sans TC';cursor:pointer">加入</button>
-                </div>
-              </div>
               <!-- B3:修訂紀錄 -->
               <sc-if value="{{ covHasHistory }}">
                 <div style="margin-top:22px;border-top:1px dashed #e7eaf2;padding-top:18px">
@@ -4110,6 +4206,7 @@
                 </div>
               </div>
             </div>
+          </sc-if>
           </sc-if>
         </div></div></sc-if>
     <!-- ============ OVERLAYS ============ -->
