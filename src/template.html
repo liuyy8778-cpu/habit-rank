@@ -3861,7 +3861,8 @@
                   <button onclick="{{ it.onRedeem }}" style="width:100%;border:0;border-radius:11px;padding:10px;background:{{ it.btnBg }};color:{{ it.btnColor }};font:800 13px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.96)">{{ it.btnText }}</button>
                 </div>
               </sc-for>
-            </div></div></sc-if>
+            </div>
+            <button onclick="{{ onOpenRewardPropose }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:15px;margin-top:14px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.98)">💡 我想上架一個獎品</button></div></sc-if>
         <sc-if value="{{ pgRecord }}"><div class="scroll" style="animation:{{ slideAnim }}"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 16px">我的紀錄</div>
             <div style="display:flex;gap:11px;margin-bottom:13px">
               <div style="flex:1;background:linear-gradient(160deg,#ffffff,#eef1fb);border:1px solid rgba(20,25,50,.07);border-radius:20px;padding:15px;text-align:center">
@@ -3996,12 +3997,13 @@
                       <div style="background:#fff;border:1px solid #e0dcff;border-radius:18px;padding:15px">
                         <div style="font-weight:800;font-size:14px;color:#1a1f2e;line-height:1.45;margin-bottom:4px">{{ pp.text }}</div>
                         <sc-if value="{{ pp.hasReason }}"><div style="font-size:12px;color:#8890a3;line-height:1.5;margin-bottom:13px">理由：{{ pp.reason }}</div></sc-if>
-                        <sc-if value="{{ pp.isTask }}">
+                        <sc-if value="{{ pp.assistShow }}">
                           <div style="background:#f7f8fc;border-radius:12px;padding:11px 12px;margin-bottom:13px;font-size:11.5px;color:#5a6070;line-height:1.7">
                             <div>💰 {{ pp.assistIncome }}</div>
                             <sc-if value="{{ pp.hasAssistPrice }}"><div>📏 {{ pp.assistPrice }}</div></sc-if>
                             <sc-if value="{{ pp.dupShow }}"><div style="color:#9c6b16;font-weight:700">⚠️ {{ pp.dupLabel }}</div></sc-if>
-                            <div style="border-top:1px solid #e7eaf2;margin-top:8px;padding-top:8px;color:#8890a3">審核前想一下(你決定,系統不判):與核心習慣重複計酬? · 是「多做的行動」而非「沒有違規」? · 完成可驗證? · 價格對過定價尺?</div>
+                            <sc-if value="{{ pp.ruleFlagShow }}"><div style="color:#b5504f;font-weight:700">🚫 {{ pp.ruleFlagLabel }}</div></sc-if>
+                            <div style="border-top:1px solid #e7eaf2;margin-top:8px;padding-top:8px;color:#8890a3">審核前想一下(你決定,系統不判):{{ pp.checklist }}</div>
                           </div>
                         </sc-if>
                         <div style="display:flex;gap:9px"><button onclick="{{ pp.onOk }}" style="flex:1;border:0;border-radius:12px;padding:11px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.97)">{{ pp.okLabel }}</button><button onclick="{{ pp.onNo }}" style="border:1.5px solid #e7eaf2;background:none;border-radius:12px;padding:11px 16px;color:#8890a3;font:600 13px 'Noto Sans TC';cursor:pointer">婉拒</button></div>
