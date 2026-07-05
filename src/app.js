@@ -700,6 +700,13 @@ class Component extends DCLogic {
       kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage,
       deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
+    // 裝置精靈:只要「已登入 + 尚未設定 deviceMode」就顯示 —— 用反應式偵測,不綁 cloudInit 成功與否,
+    // 既有已登入裝置(功能上線前就登入的)下次載入也會觸發。guestMode 無 session → 不觸發。
+    const S = this.state;
+    if (S.authReady && S.session && !S.deviceMode && !S.deviceStep && !S.pinMode && !S.kidPinMode && !this._devicePrompted) {
+      this._devicePrompted = true;
+      this.setState({ deviceStep: 'role' });
+    }
     // 防呆:孩子裝置若因 bug 進到家長 view,一律導回孩子頁
     if (this.state.deviceMode === 'kid' && this.state.mode === 'parent') { this.setState({ mode: 'kid', parentUnlocked: false }); }
     // 階段 2:登入後把變更鏡像到雲端(去抖動、盡力而為;失敗不影響本機)
