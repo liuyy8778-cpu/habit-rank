@@ -384,6 +384,7 @@ class Component extends DCLogic {
     slideDir: null, pullRefreshing: false,
     updateReady: false,   // 偵測到雲端有新版(不持久化)
     schedInfoOpen: false, // 段位頁「排程券」說明卡展開(不持久化)
+    preview: false,       // 家長裝置唯讀檢視孩子畫面(不持久化)
   };
   toMode(m) { this.setState({ mode: m }); }
   // ===== 家長 PIN(家庭層級,存雲端 families.parent_pin;localStorage 為離線快取)=====
@@ -538,8 +539,22 @@ class Component extends DCLogic {
   pManageBack() { this.setState({ pManage: null }); }                       // 返回管理 hub
   pOpenKidDetail(id) { this.setState({ pDetailKid: id }); if (id && id !== this.state.currentKidId) this.switchKid(id); } // 週報內點孩子名 → 詳情(必要時先切換載入)
   pCloseKidDetail() { this.setState({ pDetailKid: null }); }
+  // 唯讀檢視:家長裝置看孩子畫面的唯一入口(週報→詳情→檢視)。mode 切 kid 但 preview 旗標鎖住互動
+  enterPreview() { this.setState({ preview: true, mode: 'kid', kTab: 'today', slideDir: null }); }
+  exitPreview() { this.setState({ preview: false, mode: 'parent', pTab: 'report' }); }
+  // 閒置鎖:家長裝置(有 PIN)閒置 5 分鐘 → 回家長 PIN 鎖屏,保護家長功能
+  _armIdle() {
+    try { clearTimeout(this._idleT); } catch (e) {}
+    if (this.state.deviceMode !== 'parent' || !this._readPin()) return;
+    this._idleT = setTimeout(() => this._idleLock(), 5 * 60 * 1000);
+  }
+  _idleLock() {
+    if (this.state.deviceMode !== 'parent' || !this._readPin()) return;
+    this.setState({ preview: false, mode: 'parent', parentUnlocked: false, pinMode: 'enter', pinEntry: '', pinError: '', pinStage: 1, pinGoal: 'view' });
+  }
   // 小孩送出「做到」:建立 pending 事件,不立即入帳(等家長確認)。honestyEligible 任務 XP×1.5。
   submitCheckin(b) {
+    if (this.state.preview) return;   // 唯讀檢視:封死以孩子名義偽打卡
     this.setState(st => {
       const day = st.lastDate, cur = todayEventOf(st.checkinEvents, b.id, day);
       if (cur && !cur.honest && cur.verdict === 'pending') return { checkinEvents: st.checkinEvents.filter(e => e !== cur) }; // 再按=收回
@@ -556,6 +571,7 @@ class Component extends DCLogic {
   }
   // 「沒做到」= 誠實回報:立即入帳固定小額 XP(無需家長確認,因為承認失敗沒什麼好造假),連續不斷。
   markMiss(b) {
+    if (this.state.preview) return;
     this.setState(st => {
       const day = st.lastDate, cur = todayEventOf(st.checkinEvents, b.id, day);
       if (cur && cur.honest) return { checkinEvents: st.checkinEvents.filter(e => e !== cur), xp: st.xp - CONFIG.honestMissXP, missAsk: null }; // 再按=收回並退回 XP
@@ -623,7 +639,7 @@ class Component extends DCLogic {
   toggleList(id) { this.setState(st => ({ listed: { ...st.listed, [id]: st.listed[id] === false } })); } // 缺鍵視為上架,點一下就下架
   jrSel(i) { this.setState({ jrSel: i }); }
   toggleSchedInfo() { this.setState(st => ({ schedInfoOpen: !st.schedInfoOpen })); }
-  useProtect() { this.setState(st => st.protects > 0 && !st.saved ? { protects: st.protects - 1, streak: st.streak + 1, saved: true } : null); }
+  useProtect() { if (this.state.preview) return; this.setState(st => st.protects > 0 && !st.saved ? { protects: st.protects - 1, streak: st.streak + 1, saved: true } : null); }
   decide(id, d) { this.setState(st => ({ decided: { ...st.decided, [id]: d } })); }
   openCeleb() { this.setState({ celebrate: true }); }
   closeCeleb() { this.setState({ celebrate: false }); }
@@ -646,9 +662,9 @@ class Component extends DCLogic {
   // ===== B3:公約雙向化(小孩提案 + 家長承諾 + 修訂紀錄)=====
   setProp(field, e) { const v = e.target.value; this.setState({ [field]: v }); }
   // 小孩提案改公約 → 進家長待確認
-  openPropose() { this.setState({ proposeOpen: true, proposeKind: 'covenant' }); }        // 我想改公約
-  openTaskPropose() { this.setState({ proposeOpen: true, proposeKind: 'task' }); }         // 我想提新任務(提案權,非呼叫家長)
-  openRewardPropose() { this.setState({ proposeOpen: true, proposeKind: 'reward' }); }     // 我想上架一個獎品
+  openPropose() { if (this.state.preview) return; this.setState({ proposeOpen: true, proposeKind: 'covenant' }); }        // 我想改公約
+  openTaskPropose() { if (this.state.preview) return; this.setState({ proposeOpen: true, proposeKind: 'task' }); }         // 我想提新任務(提案權,非呼叫家長)
+  openRewardPropose() { if (this.state.preview) return; this.setState({ proposeOpen: true, proposeKind: 'reward' }); }     // 我想上架一個獎品
   closePropose() { this.setState({ proposeOpen: false, propText: '', propReason: '', proposeKind: 'covenant' }); }
   submitProposal() {
     this.setState(st => {
@@ -704,7 +720,7 @@ class Component extends DCLogic {
   }
   // 家長誠實回報今天有沒有做到自己的承諾(小孩看得到)
   togglePledge(id) { this.setState(st => { const k = id + '::' + (st.lastDate || ymd(new Date())); return { pledgeDone: { ...st.pledgeDone, [k]: !st.pledgeDone[k] } }; }); }
-  redeem(it) { this.setState(st => { if (st.redeemed[it.id] || st.coins < it.cost) return null; return { coins: st.coins - it.cost, redeemed: { ...st.redeemed, [it.id]: true }, fx: { name: it.name, icon: it.icon, gradient: it.gradient, spent: it.cost, left: st.coins - it.cost } }; }); }
+  redeem(it) { if (this.state.preview) return; this.setState(st => { if (st.redeemed[it.id] || st.coins < it.cost) return null; return { coins: st.coins - it.cost, redeemed: { ...st.redeemed, [it.id]: true }, fx: { name: it.name, icon: it.icon, gradient: it.gradient, spent: it.cost, left: st.coins - it.cost } }; }); }
   closeFx() { this.setState({ fx: null }); }
   // ===== 持久化 + 日期感知 =====
   componentDidMount() {
@@ -737,6 +753,11 @@ class Component extends DCLogic {
       document.addEventListener('touchmove', this._tmH, { passive: false });
       document.addEventListener('touchend', this._teH, { passive: true });
       document.addEventListener('touchcancel', this._teH, { passive: true });
+      // 閒置鎖:家長裝置的活動偵測(重置 5 分鐘計時)
+      this._idleH = () => this._armIdle();
+      document.addEventListener('pointerdown', this._idleH, { passive: true });
+      document.addEventListener('keydown', this._idleH, { passive: true });
+      this._armIdle();
     }
   }
   // 版本偵測:抓 version.json(不吃快取),雲端建置編號 > 本機 → 顯示更新提示條
@@ -760,14 +781,15 @@ class Component extends DCLogic {
     this.setState(st => ({ checkinEvents: [...(st.checkinEvents || []), { type: 'session', date: day, ts: Date.now(), durationSec }] }));
   }
   componentWillUnmount() { try { this.recordSession(); if (this._verPoll) clearInterval(this._verPoll); if (this._visHandler) document.removeEventListener('visibilitychange', this._visHandler);
-    if (this._tsH) { document.removeEventListener('touchstart', this._tsH); document.removeEventListener('touchmove', this._tmH); document.removeEventListener('touchend', this._teH); document.removeEventListener('touchcancel', this._teH); } } catch (e) {} }
+    if (this._tsH) { document.removeEventListener('touchstart', this._tsH); document.removeEventListener('touchmove', this._tmH); document.removeEventListener('touchend', this._teH); document.removeEventListener('touchcancel', this._teH); }
+    if (this._idleH) { document.removeEventListener('pointerdown', this._idleH); document.removeEventListener('keydown', this._idleH); } try { clearTimeout(this._idleT); } catch (e) {} } catch (e) {} }
   componentDidUpdate() {
     try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, proposeKind, retroOpen,
       authReady, session, authEmail, authSent, authError, supaOff, guestMode, syncStatus,
       kids, currentKidId, kidSwitchOpen, newKidName, newKidAvatar,
       pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm,
       kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage,
-      deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, updateReady, schedInfoOpen, ...persist } = this.state;
+      deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, updateReady, schedInfoOpen, preview, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
     // 裝置精靈:只要「已登入 + 尚未設定 deviceMode」就顯示 —— 用反應式偵測,不綁 cloudInit 成功與否,
     // 既有已登入裝置(功能上線前就登入的)下次載入也會觸發。guestMode 無 session → 不觸發。
@@ -778,6 +800,9 @@ class Component extends DCLogic {
     }
     // 防呆:孩子裝置若因 bug 進到家長 view,一律導回孩子頁
     if (this.state.deviceMode === 'kid' && this.state.mode === 'parent') { this.setState({ mode: 'kid', parentUnlocked: false }); }
+    // 家長裝置固定停留家長 view:非 preview 下若跑到孩子互動頁 → 導回家長(封死以孩子名義操作)。
+    // dev 要完整孩子視圖:改 localStorage habitRank_device→kid(既有能力),非 UI 路徑。
+    if (this.state.deviceMode === 'parent' && this.state.mode === 'kid' && !this.state.preview) { this.setState({ mode: 'parent', preview: false }); }
     // 階段 2:登入後把變更鏡像到雲端(去抖動、盡力而為;失敗不影響本機)
     if (this._supa && this._cloudReady && this.state.session && !this._hydrating) {
       try { clearTimeout(this._saveTimer); } catch (e) {}
@@ -1355,6 +1380,13 @@ class Component extends DCLogic {
       loggedIn: !!S.session, sessionEmail: S.session ? S.session.email : '', onSignOut: () => this.signOut(),
       // 階段 3:多小孩切換
       kidSwitchable: !!S.session && (S.kids || []).length >= 1, notKidSwitchable: !(!!S.session && (S.kids || []).length >= 1),
+      // 家長裝置純家長模式:移除「小孩」切換鈕 + 頂部下拉(改靜態);孩子選擇改走週報詳情
+      showKidToggle: S.deviceMode !== 'parent',
+      parentSwitcher: (!!S.session && (S.kids || []).length >= 1) && S.deviceMode !== 'parent',
+      parentSwitcherStatic: !((!!S.session && (S.kids || []).length >= 1) && S.deviceMode !== 'parent'),
+      // 唯讀檢視模式
+      preview: !!S.preview, notPreview: !S.preview, onExitPreview: () => this.exitPreview(),
+      onEnterPreview: () => this.enterPreview(), previewClass: S.preview ? 'previewing' : '',
       currentKidName: (curKid && curKid.name) || '小孩', currentKidAvatar: (curKid && curKid.avatar) || '🙂',
       kidSwitchOpen: !!S.kidSwitchOpen, onOpenKidSwitch: () => this.openKidSwitch(), onCloseKidSwitch: () => this.closeKidSwitch(),
       kidList: (S.kids || []).map(k => ({ id: k.id, name: k.name, avatar: k.avatar || '🦊', isCurrent: k.id === S.currentKidId,
