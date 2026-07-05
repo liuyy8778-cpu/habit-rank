@@ -1,7 +1,13 @@
 <!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eef1f7">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="家庭自律">
+<link rel="manifest" href='data:application/manifest+json,{"name":"家庭自律養成","short_name":"家庭自律","start_url":".","display":"standalone","background_color":"%235b5bd6","theme_color":"%23eef1f7","icons":[{"src":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzViNWJkNicvPjxnIGZpbGw9J25vbmUnIHN0cm9rZT0nI2ZmZicgc3Ryb2tlLXdpZHRoPScyLjUnPjxjaXJjbGUgY3g9JzE2JyBjeT0nMTYnIHI9JzgnLz48Y2lyY2xlIGN4PScxNicgY3k9JzE2JyByPSczLjUnLz48L2c+PGNpcmNsZSBjeD0nMTYnIGN5PScxNicgcj0nMS4zJyBmaWxsPScjZmZmJy8+PC9zdmc+","sizes":"any","type":"image/svg+xml","purpose":"any"}]}'>
 <script src="b645423f-39af-4708-ab22-59ebc51bb268"></script>
 </head>
 <body>
@@ -3579,12 +3585,17 @@
 </style>
 <style>
   *{box-sizing:border-box}
-  body{margin:0;background:#c9cdd6;font-family:"Noto Sans TC",system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:36px}
+  body{margin:0;background:#c9cdd6;font-family:"Noto Sans TC",system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:36px}
   .phone{width:384px;height:812px;border-radius:46px;border:11px solid #14161d;box-shadow:0 40px 80px -24px rgba(20,22,29,.6);overflow:hidden;position:relative;background:#eef1f7;flex:none}
   .app{position:absolute;inset:0;overflow:hidden}
-  .scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:100px 18px 104px;scrollbar-width:none;overscroll-behavior-y:contain}
+  .scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:100px 18px 104px;padding-bottom:calc(104px + env(safe-area-inset-bottom));scrollbar-width:none;overscroll-behavior-y:contain}
   .scroll::-webkit-scrollbar{display:none}
-  .navbar{position:absolute;left:0;right:0;bottom:0;height:88px;display:flex;align-items:flex-start;justify-content:space-around;padding:12px 6px 0;backdrop-filter:blur(18px)}
+  .navbar{position:absolute;left:0;right:0;bottom:0;height:88px;height:calc(88px + env(safe-area-inset-bottom));display:flex;align-items:flex-start;justify-content:space-around;padding:12px 6px 0;padding-bottom:env(safe-area-inset-bottom);backdrop-filter:blur(18px)}
+  /* 真手機(視窗 ≤ 500px):不套假手機外框,內容全幅 + 100dvh,底部 tab 不被網址列擠掉 */
+  @media (max-width:500px){
+    body{padding:0;background:#eef1f7;align-items:stretch;min-height:100vh;min-height:100dvh}
+    .phone{width:100%;height:100vh;height:100dvh;border:0;border-radius:0;box-shadow:none}
+  }
   .navb{display:flex;flex-direction:column;align-items:center;gap:5px;border:0;background:none;cursor:pointer;font:600 10.5px/1 "Noto Sans TC",sans-serif;padding:2px 4px;flex:1}
   .navb svg{width:23px;height:23px}
   @keyframes cardIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
