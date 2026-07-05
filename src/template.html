@@ -3812,6 +3812,18 @@
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-weight:900;font-size:17px;color:#1a1f2e">{{ jr.selName }}</span><span style="background:{{ jr.selBadgeBg }};color:{{ jr.selBadgeColor }};font-weight:700;font-size:11px;padding:3px 9px;border-radius:7px">{{ jr.selBadge }}</span></div>
               <div style="font-size:12.5px;color:#6b7180;line-height:1.6;margin-bottom:12px">{{ jr.selUnlock }}</div>
               <div style="display:flex;align-items:center;gap:8px;background:#fff;border-radius:12px;padding:10px 13px"><span style="color:#e0a53a;display:flex"><svg style="width:19px;height:19px"><use href="#i-gift"></use></svg></span><div><div style="font-size:10.5px;color:#8890a3">解鎖獎勵</div><div style="font-weight:800;font-size:13px;color:#1a1f2e">{{ jr.selReward }}</div></div></div>
+              <sc-if value="{{ jr.selIsSched }}">
+                <button onclick="{{ onToggleSchedInfo }}" style="width:100%;border:0;background:none;margin-top:10px;padding:2px;color:#5b5bd6;font:700 12px 'Noto Sans TC';cursor:pointer;text-align:left">🎟️ 排程券怎麼用? {{ schedInfoCaret }}</button>
+                <sc-if value="{{ schedInfoOpen }}">
+                  <div style="background:#fff;border-radius:12px;padding:13px 14px;margin-top:8px;font-size:12px;color:#5a6070;line-height:1.7;animation:cardIn .3s both">
+                    <div style="font-weight:700;color:#1a1f2e;margin-bottom:7px">每週一張。有一件今天該做的事,你可以自己決定今天幾點做。</div>
+                    <div style="margin-bottom:4px">・原時段到之前使用,改好的時間會通知爸媽——不用批准,這是你的權利。</div>
+                    <div style="margin-bottom:4px">・只能改到今天之內,事情照做、標準照舊。</div>
+                    <div style="margin-bottom:4px">・自己訂的時間,自己守住。沒做到照一般規則,券不退回。</div>
+                    <div>・不適用:螢幕時段、交機時間。每週重置,不累積。</div>
+                  </div>
+                </sc-if>
+              </sc-if>
             </div>
             <div style="font-weight:800;font-size:13px;color:#8890a3;margin:0 4px 14px">點任何一關看它解鎖什麼</div>
             <div style="position:relative;padding-left:2px">

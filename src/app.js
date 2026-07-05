@@ -383,6 +383,7 @@ class Component extends DCLogic {
     // APP 化手勢(不持久化):slideDir=進場動畫方向('l'/'r'/null);pullRefreshing=下拉刷新中
     slideDir: null, pullRefreshing: false,
     updateReady: false,   // 偵測到雲端有新版(不持久化)
+    schedInfoOpen: false, // 段位頁「排程券」說明卡展開(不持久化)
   };
   toMode(m) { this.setState({ mode: m }); }
   // ===== 家長 PIN(家庭層級,存雲端 families.parent_pin;localStorage 為離線快取)=====
@@ -621,6 +622,7 @@ class Component extends DCLogic {
   unlockTask(id) { this.setState(st => ({ manualUnlock: { ...st.manualUnlock, [id]: true }, taskOn: { ...st.taskOn, [id]: true } })); } // 家長最大:提前解鎖並啟用
   toggleList(id) { this.setState(st => ({ listed: { ...st.listed, [id]: st.listed[id] === false } })); } // 缺鍵視為上架,點一下就下架
   jrSel(i) { this.setState({ jrSel: i }); }
+  toggleSchedInfo() { this.setState(st => ({ schedInfoOpen: !st.schedInfoOpen })); }
   useProtect() { this.setState(st => st.protects > 0 && !st.saved ? { protects: st.protects - 1, streak: st.streak + 1, saved: true } : null); }
   decide(id, d) { this.setState(st => ({ decided: { ...st.decided, [id]: d } })); }
   openCeleb() { this.setState({ celebrate: true }); }
@@ -765,7 +767,7 @@ class Component extends DCLogic {
       kids, currentKidId, kidSwitchOpen, newKidName, newKidAvatar,
       pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm,
       kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage,
-      deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, updateReady, ...persist } = this.state;
+      deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, updateReady, schedInfoOpen, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
     // 裝置精靈:只要「已登入 + 尚未設定 deviceMode」就顯示 —— 用反應式偵測,不綁 cloudInit 成功與否,
     // 既有已登入裝置(功能上線前就登入的)下次載入也會觸發。guestMode 無 session → 不觸發。
@@ -1253,6 +1255,7 @@ class Component extends DCLogic {
         ring: stt === 'now' ? '0 0 0 5px rgba(91,91,214,.18)' : 'none' }; });
     const selState = sel < reached ? 'done' : (sel === reached ? 'now' : 'lock');
     const jr = { tiers, selName: jrDefs[sel][0], selUnlock: jrDefs[sel][1], selReward: jrDefs[sel][3], nextName: jrDefs[Math.min(reached + 1, jrDefs.length - 1)][0],
+      selIsSched: jrDefs[sel][0] === '銅段',   // 排程券說明卡入口只在銅段
       selBadge: selState === 'done' ? '已達成' : (selState === 'now' ? '進行中' : '未解鎖'), selBadgeBg: selState === 'lock' ? '#eef0f6' : '#eef0ff', selBadgeColor: selState === 'lock' ? '#8890a3' : '#4a4ac2' };
     // 商城鐵律:螢幕時間/裝置額度永不作為商品(Premack:被標價的東西會升值,與教養目標相反);
     // 社交需求不標價。示範資料一律為特權/體驗類。稀缺型角標(HOT/新)已移除,唯一角標=「你提案的」。
@@ -1385,6 +1388,7 @@ class Component extends DCLogic {
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
       habits, dailyTasks, jr, shop, rec, appVersion: APP_VERSION,
       updateReady: !!this.state.updateReady, onApplyUpdate: () => this.applyUpdate(),
+      schedInfoOpen: !!S.schedInfoOpen, onToggleSchedInfo: () => this.toggleSchedInfo(), schedInfoCaret: S.schedInfoOpen ? '▴' : '▾',
       hasDailyTasks: dailyTasks.length > 0, noDailyTasks: dailyTasks.length === 0, pickedLabel: pickedCount + ' 個',
       onExport: () => this.exportBackup(),
       onReset: () => this.resetAll(),
