@@ -323,7 +323,7 @@ class Component extends DCLogic {
       history: [],     // B3:修訂紀錄(who/when/改了什麼)
     },
     newTerm: '', sealing: null, missAsk: null,
-    propText: '', propReason: '', newPledge: '', pledgeDone: {}, proposeOpen: false, pendingDeletes: [],
+    propText: '', propReason: '', newPledge: '', pledgeDone: {}, proposeOpen: false, proposeKind: 'covenant', pendingDeletes: [],
     listed: { s2: true, s5: true, s6: true, s7: true, s8: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
@@ -602,22 +602,29 @@ class Component extends DCLogic {
   // ===== B3:公約雙向化(小孩提案 + 家長承諾 + 修訂紀錄)=====
   setProp(field, e) { const v = e.target.value; this.setState({ [field]: v }); }
   // 小孩提案改公約 → 進家長待確認
-  openPropose() { this.setState({ proposeOpen: true }); }
-  closePropose() { this.setState({ proposeOpen: false, propText: '', propReason: '' }); }
+  openPropose() { this.setState({ proposeOpen: true, proposeKind: 'covenant' }); }        // 我想改公約
+  openTaskPropose() { this.setState({ proposeOpen: true, proposeKind: 'task' }); }         // 我想提新任務(提案權,非呼叫家長)
+  closePropose() { this.setState({ proposeOpen: false, propText: '', propReason: '', proposeKind: 'covenant' }); }
   submitProposal() {
     this.setState(st => {
-      const text = (st.propText || '').trim(); if (!text) return { proposeOpen: false };
-      const p = { id: newId(), text, reason: (st.propReason || '').trim(), at: ymd(new Date()), status: 'pending' };
-      return { propText: '', propReason: '', proposeOpen: false, covenant: { ...st.covenant, proposals: [...(st.covenant.proposals || []), p] } };
+      const text = (st.propText || '').trim(); if (!text) return { proposeOpen: false, proposeKind: 'covenant' };
+      const kind = st.proposeKind || 'covenant';
+      // task:propReason 當「自提賞金」;covenant:propReason 當理由
+      const p = { id: newId(), text, reason: (st.propReason || '').trim(), at: ymd(new Date()), status: 'pending', kind };
+      return { propText: '', propReason: '', proposeOpen: false, proposeKind: 'covenant', covenant: { ...st.covenant, proposals: [...(st.covenant.proposals || []), p] } };
     });
   }
-  // 家長採納/婉拒提案:採納 → 條款加入公約 + 記修訂紀錄
+  // 家長採納/婉拒提案:公約提案採納 → 條款加入公約;任務提案採納 → 只記錄(實際上架任務池為 Phase 2),不塞進公約條款
   decideProposal(id, approve) {
     this.setState(st => {
       const p = (st.covenant.proposals || []).find(x => x.id === id && x.status === 'pending');
       if (!p) return null;
       const proposals = st.covenant.proposals.map(x => x === p ? { ...x, status: approve ? 'approved' : 'rejected' } : x);
       if (!approve) return { covenant: { ...st.covenant, proposals } };
+      if (p.kind === 'task') {                                     // 任務提案:不動公約條款,只留採納紀錄
+        const note = '採納任務提案:' + p.text + (p.reason ? '(開價 ' + p.reason + ')' : '');
+        return { covenant: { ...st.covenant, proposals, history: [...(st.covenant.history || []), { v: st.covenant.version, at: ymd(new Date()), note }] } };
+      }
       return { covenant: { ...st.covenant, proposals, terms: [...st.covenant.terms, p.text],
         history: [...(st.covenant.history || []), { v: st.covenant.version, at: ymd(new Date()), note: '採納孩子提案:' + p.text }] } };
     });
@@ -693,7 +700,7 @@ class Component extends DCLogic {
   componentWillUnmount() { try { this.recordSession(); if (this._visHandler) document.removeEventListener('visibilitychange', this._visHandler);
     if (this._tsH) { document.removeEventListener('touchstart', this._tsH); document.removeEventListener('touchmove', this._tmH); document.removeEventListener('touchend', this._teH); document.removeEventListener('touchcancel', this._teH); } } catch (e) {} }
   componentDidUpdate() {
-    try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, retroOpen,
+    try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, proposeKind, retroOpen,
       authReady, session, authEmail, authSent, authError, supaOff, guestMode, syncStatus,
       kids, currentKidId, kidSwitchOpen, newKidName, newKidAvatar,
       pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm,
@@ -1323,7 +1330,6 @@ class Component extends DCLogic {
       probeLatency: probe.latN ? ((probe.latAvg >= 0 ? '晚 ' + probe.latAvg : '早 ' + (-probe.latAvg)) + ' 分 · ' + probe.latN + ' 筆') : '尚無資料',
       probeSession: probe.sesN ? (probe.sesAvg + ' 秒 · ' + probe.sesN + ' 次') : '尚無資料',
       probeRecovery: probe.rejN ? (probe.recovRate + '% · ' + probe.rejN + ' 次退回') : '尚無退回',
-      onAddHabit: () => this.setState({ mode: 'parent', pTab: 'manage', pManage: 'tasks', pDetailKid: null }),
       ...todayRank,
       dayMode: mode,
       onDayHome: () => this.setDayMode('home'), onDaySchool: () => this.setDayMode('school'), onDayOut: () => this.setDayMode('out'),
@@ -1385,9 +1391,16 @@ class Component extends DCLogic {
       // ===== B3:公約雙向化 =====
       // 小孩端:提案表單 + 自己的提案狀態 + 看得到家長承諾今天做到沒
       propText: S.propText, propReason: S.propReason, proposeOpen: !!S.proposeOpen,
-      onOpenPropose: () => this.openPropose(), onClosePropose: () => this.closePropose(),
+      onOpenPropose: () => this.openPropose(), onOpenTaskPropose: () => this.openTaskPropose(), onClosePropose: () => this.closePropose(),
       onPropText: (e) => this.setProp('propText', e), onPropReason: (e) => this.setProp('propReason', e), onSubmitProposal: () => this.submitProposal(),
-      kidProposals: (S.covenant.proposals || []).slice().reverse().map(p => ({ text: p.text,
+      // 提案 modal 文案依 proposeKind 切換(公約提案 vs 任務提案)
+      proposeTitle: S.proposeKind === 'task' ? '💡 我想提一個新任務' : '💡 我想改公約',
+      proposeSubtitle: S.proposeKind === 'task'
+        ? '你想多做什麼?覺得值多少幣?爸媽會看到你的提案,通過後就會加進任務池。這是你的提案權。'
+        : '寫下你想改的規則、和為什麼。爸媽會看到，通過就會更新公約。這是你的聲音。',
+      propTextPlaceholder: S.proposeKind === 'task' ? '你想多做什麼?(例:每天整理書桌)' : '想改成…(例:上學日交機改成 22:00)',
+      propReasonPlaceholder: S.proposeKind === 'task' ? '覺得值多少幣?(開個價,例:8)' : '為什麼?(說清楚理由，比較有說服力)',
+      kidProposals: (S.covenant.proposals || []).slice().reverse().map(p => ({ text: (p.kind === 'task' ? '🧩 任務:' : '📜 公約:') + p.text,
         statusLabel: p.status === 'pending' ? '審核中' : (p.status === 'approved' ? '已採納 ✓' : '這次沒採納'),
         statusColor: p.status === 'pending' ? '#cf9a2f' : (p.status === 'approved' ? '#2fae8a' : '#a6adbe'),
         statusBg: p.status === 'pending' ? '#f6efe0' : (p.status === 'approved' ? '#e7f6f0' : '#f2f3f7') })),
@@ -1395,7 +1408,10 @@ class Component extends DCLogic {
       kidPledges: (S.covenant.pledges || []).map(p => { const done = !!(S.pledgeDone && S.pledgeDone[p.id + '::' + today]); return { text: p.text, doneLabel: done ? '今天做到了 ✓' : '今天還沒', doneColor: done ? '#2fae8a' : '#a6adbe', doneBg: done ? '#e7f6f0' : '#f2f3f7' }; }),
       kidHasPledges: (S.covenant.pledges || []).length > 0,
       // 家長端:待審提案
-      pProposals: (S.covenant.proposals || []).filter(p => p.status === 'pending').map(p => ({ id: p.id, text: p.text, reason: p.reason, hasReason: !!p.reason,
+      pProposals: (S.covenant.proposals || []).filter(p => p.status === 'pending').map(p => ({ id: p.id,
+        text: (p.kind === 'task' ? '🧩 新任務:' : '📜 改公約:') + p.text,
+        reason: p.kind === 'task' ? (p.reason ? '孩子開價:' + p.reason + ' 幣(最終由你定價)' : '孩子未開價') : p.reason,
+        hasReason: p.kind === 'task' ? true : !!p.reason,
         onOk: () => this.decideProposal(p.id, true), onNo: () => this.decideProposal(p.id, false) })),
       pHasProposals: (S.covenant.proposals || []).some(p => p.status === 'pending'),
       // 家長端:承諾管理 + 修訂紀錄

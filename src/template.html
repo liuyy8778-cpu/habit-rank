@@ -3776,7 +3776,7 @@
         <sc-if value="{{ pgTasks }}"><div class="scroll" style="animation:{{ slideAnim }}"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 6px">任務池</div>
             <div style="font-size:12.5px;color:#8890a3;margin:0 4px 14px;line-height:1.5">關鍵習慣在「今日」頁；這裡是<b style="color:#5b5bd6">自己挑</b>的挑戰——今天想多做哪幾個,你自己決定,做完打勾拿獎勵。</div>
             <sc-if value="{{ hasDailyTasks }}"><div style="font-size:11.5px;color:#8890a3;margin:0 4px 12px">🎯 今天挑了 <b style="color:#5b5bd6">{{ pickedLabel }}</b></div></sc-if>
-            <sc-if value="{{ noDailyTasks }}"><div style="text-align:center;background:#f7f8fc;border-radius:16px;padding:22px 16px;margin-bottom:16px;font-size:12.5px;color:#8890a3;line-height:1.6">目前沒有可挑的任務。<br>家長可到「任務獎勵」開啟更多,或升段位解鎖新挑戰。</div></sc-if>
+            <sc-if value="{{ noDailyTasks }}"><div style="text-align:center;background:#f7f8fc;border-radius:16px;padding:22px 16px;margin-bottom:16px;font-size:12.5px;color:#8890a3;line-height:1.6">目前沒有可挑的任務。<br>升段位會解鎖新挑戰,或用下面「我想提一個新任務」提案。</div></sc-if>
             <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:16px">
               <sc-for list="{{ dailyTasks }}" as="a" hint-placeholder-count="5">
                 <button onclick="{{ a.onToggle }}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:14px;cursor:pointer;transition:transform .1s" style-active="transform:scale(.98)">
@@ -3787,7 +3787,7 @@
                 </button>
               </sc-for>
             </div>
-            <button onclick="{{ onAddHabit }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:15px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.98)">＋ 開啟更多任務(家長)</button></div></sc-if>
+            <button onclick="{{ onOpenTaskPropose }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:15px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.98)">💡 我想提一個新任務</button></div></sc-if>
         <sc-if value="{{ pgRank }}"><div class="scroll" style="animation:{{ slideAnim }}"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 16px">段位之路</div>
             <!-- B1:畢業里程(關鍵習慣全畢業後出現)——鷹架不是牢籠 -->
             <sc-if value="{{ gradMilestoneShow }}">
@@ -4298,10 +4298,10 @@
     <sc-if value="{{ proposeOpen }}">
       <div style="position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(16,18,30,.45);backdrop-filter:blur(2px);animation:scrimIn .25s both;z-index:10">
         <div style="width:100%;background:#fff;border-radius:24px 24px 0 0;padding:22px 20px 26px;box-shadow:0 -12px 40px -12px rgba(0,0,0,.35);animation:sheetUp .3s both">
-          <div style="font-weight:900;font-size:16px;color:#1a1f2e;margin-bottom:4px">💡 我想改公約</div>
-          <div style="font-size:12.5px;color:#8890a3;line-height:1.55;margin-bottom:16px">寫下你想改的規則、和為什麼。爸媽會看到，通過就會更新公約。這是你的聲音。</div>
-          <input value="{{ propText }}" oninput="{{ onPropText }}" placeholder="想改成…(例:上學日交機改成 22:00)" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:13px;padding:13px;font:400 13.5px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:10px">
-          <input value="{{ propReason }}" oninput="{{ onPropReason }}" placeholder="為什麼?(說清楚理由，比較有說服力)" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:13px;padding:13px;font:400 13.5px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:16px">
+          <div style="font-weight:900;font-size:16px;color:#1a1f2e;margin-bottom:4px">{{ proposeTitle }}</div>
+          <div style="font-size:12.5px;color:#8890a3;line-height:1.55;margin-bottom:16px">{{ proposeSubtitle }}</div>
+          <input value="{{ propText }}" oninput="{{ onPropText }}" placeholder="{{ propTextPlaceholder }}" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:13px;padding:13px;font:400 13.5px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:10px">
+          <input value="{{ propReason }}" oninput="{{ onPropReason }}" placeholder="{{ propReasonPlaceholder }}" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:13px;padding:13px;font:400 13.5px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:16px">
           <div style="display:flex;gap:9px">
             <button onclick="{{ onClosePropose }}" style="flex:none;border:1.5px solid #e7eaf2;background:#fff;border-radius:13px;padding:13px 18px;color:#8890a3;font:700 13px 'Noto Sans TC';cursor:pointer">取消</button>
             <button onclick="{{ onSubmitProposal }}" style="flex:1;border:0;border-radius:13px;padding:13px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 14px 'Noto Sans TC';cursor:pointer">送出提案</button>
