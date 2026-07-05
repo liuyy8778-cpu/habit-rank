@@ -324,7 +324,7 @@ class Component extends DCLogic {
     },
     newTerm: '', sealing: null, missAsk: null,
     propText: '', propReason: '', newPledge: '', pledgeDone: {}, proposeOpen: false, pendingDeletes: [],
-    listed: { s1: true, s2: true, s3: true, s4: true, s5: false, s6: true },
+    listed: { s2: true, s5: true, s6: true, s7: true, s8: true },
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
     // 登入狀態(不持久化):authReady=已檢查 session,session=已登入,supaOff=後端不可用時退回本機
@@ -577,7 +577,7 @@ class Component extends DCLogic {
   }
   toggleTaskOn(id) { this.setState(st => ({ taskOn: { ...st.taskOn, [id]: !st.taskOn[id] } })); }
   unlockTask(id) { this.setState(st => ({ manualUnlock: { ...st.manualUnlock, [id]: true }, taskOn: { ...st.taskOn, [id]: true } })); } // 家長最大:提前解鎖並啟用
-  toggleList(id) { this.setState(st => ({ listed: { ...st.listed, [id]: !st.listed[id] } })); }
+  toggleList(id) { this.setState(st => ({ listed: { ...st.listed, [id]: st.listed[id] === false } })); } // 缺鍵視為上架,點一下就下架
   jrSel(i) { this.setState({ jrSel: i }); }
   useProtect() { this.setState(st => st.protects > 0 && !st.saved ? { protects: st.protects - 1, streak: st.streak + 1, saved: true } : null); }
   decide(id, d) { this.setState(st => ({ decided: { ...st.decided, [id]: d } })); }
@@ -1180,17 +1180,21 @@ class Component extends DCLogic {
     const selState = sel < reached ? 'done' : (sel === reached ? 'now' : 'lock');
     const jr = { tiers, selName: jrDefs[sel][0], selUnlock: jrDefs[sel][1], selReward: jrDefs[sel][3], nextName: jrDefs[Math.min(reached + 1, jrDefs.length - 1)][0],
       selBadge: selState === 'done' ? '已達成' : (selState === 'now' ? '進行中' : '未解鎖'), selBadgeBg: selState === 'lock' ? '#eef0f6' : '#eef0ff', selBadgeColor: selState === 'lock' ? '#8890a3' : '#4a4ac2' };
+    // 商城鐵律:螢幕時間/裝置額度永不作為商品(Premack:被標價的東西會升值,與教養目標相反);
+    // 社交需求不標價。示範資料一律為特權/體驗類。稀缺型角標(HOT/新)已移除,唯一角標=「你提案的」。
     const itemsAll = [
-      { id:'s1', name:'週末 +30 分 螢幕時段', cost:250, cat:'screen', icon:'i-hour', g:'indigo', tag:'HOT' },
-      { id:'s2', name:'電影夜選片權', cost:350, cat:'perk', icon:'i-gift', g:'magenta', tag:'' },
-      { id:'s3', name:'朋友來家裡過夜', cost:1200, cat:'outing', icon:'i-spark', g:'amber', tag:'新' },
-      { id:'s4', name:'週五交機延 30 分', cost:250, cat:'screen', icon:'i-moon', g:'sky', tag:'' },
-      { id:'s5', name:'家庭出遊選地點', cost:800, cat:'outing', icon:'i-target', g:'teal', tag:'' },
-      { id:'s6', name:'一次免家事券', cost:450, cat:'perk', icon:'i-shield', g:'indigo', tag:'' },
+      { id:'s5', name:'決定一次全家晚餐', cost:600, cat:'exp',  icon:'i-heart',  g:'magenta' },
+      { id:'s2', name:'家庭電影選片權',   cost:350, cat:'perk', icon:'i-gift',   g:'indigo' },
+      { id:'s7', name:'跟爸爸單獨出門半天', cost:800, cat:'exp',  icon:'i-spark',  g:'amber' },
+      { id:'s8', name:'家庭出遊選地點',   cost:800, cat:'exp',  icon:'i-target', g:'teal' },
+      { id:'s6', name:'一次免家事券',     cost:450, cat:'perk', icon:'i-shield', g:'indigo' },
     ];
-    const shop = itemsAll.filter(it => S.listed[it.id]).map(it => { const rd = !!S.redeemed[it.id], afford = S.coins >= it.cost;
-      return { ...it, gradient: grads[it.g], costLabel: '' + it.cost, hasTag: !!it.tag,
-        btnText: rd ? '已兌換' : (afford ? '兌換' : '金幣不足'), btnBg: rd ? '#eef0f6' : (afford ? GRAD : '#eef0f6'), btnColor: rd ? '#8890a3' : (afford ? '#fff' : '#aab0c0'),
+    const shop = itemsAll.filter(it => S.listed[it.id] !== false).map(it => { const rd = !!S.redeemed[it.id], afford = S.coins >= it.cost;
+      const short = Math.max(0, it.cost - (S.coins || 0));
+      return { ...it, gradient: grads[it.g], costLabel: '' + it.cost, proposed: !!it.proposed,
+        btnText: rd ? '已兌換' : (afford ? '兌換' : '再存 ' + short + ' 幣'),
+        btnBg: rd ? '#eef0f6' : (afford ? GRAD : '#f2f3f7'), btnColor: rd ? '#8890a3' : (afford ? '#fff' : '#8890a3'),
+        showProg: !rd && !afford, progPct: Math.min(100, Math.round((S.coins || 0) / it.cost * 100)) + '%',
         onRedeem: () => this.redeem({ id: it.id, name: it.name, cost: it.cost, icon: it.icon, gradient: grads[it.g] }) }; });
     const recPat = ['d','d','d','h','d','d','d','d','d','h','d','d','m','d','d','d','d','d','h','d','d','d','d','d','d','h','now','future'];
     const recMap = { d:{ bg:ACC, color:'#fff', ico:'i-check' }, h:{ bg:'#f6efe0', color:'#cf9a2f', ico:'i-heart' }, m:{ bg:'#eef0f6', color:'#aab0c0', ico:'i-close' }, now:{ bg:'#fff', color:'#5b5bd6', ico:'', ring:true }, future:{ bg:'#e9ecf3', color:'#c2c8d6', ico:'' } };
@@ -1222,7 +1226,7 @@ class Component extends DCLogic {
     const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
     const wr = weeklyReport(S.checkinEvents, today, S.taskOn); // B6:真實週報 + 一句話
     const probe = dataProbe(S.checkinEvents, today); // #3:反向指標數據自查
-    const pRewards = itemsAll.map(it => { const on = !!S.listed[it.id]; return { id: it.id, name: it.name, cost: it.cost + '', iconHref: it.icon, gradient: grads[it.g], onToggle: () => this.toggleList(it.id), tgLabel: on ? '上架中' : '已下架', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
+    const pRewards = itemsAll.map(it => { const on = S.listed[it.id] !== false; return { id: it.id, name: it.name, cost: it.cost + '', iconHref: it.icon, gradient: grads[it.g], onToggle: () => this.toggleList(it.id), tgLabel: on ? '上架中' : '已下架', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
     // 家長任務管理:任務庫全部列出。鎖定的顯示解鎖段位,家長可提前解鎖(家長最大)
     const pTasks = LIB.map(t => { const on = !!S.taskOn[t.id], locked = !available(t);
       const rt = '+' + t.xp + 'XP · ' + t.coin + '幣';

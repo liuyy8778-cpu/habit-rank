@@ -3850,10 +3850,11 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
               <sc-for list="{{ shop }}" as="it" hint-placeholder-count="4">
                 <div style="position:relative;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:14px;box-shadow:0 6px 16px -16px rgba(0,0,0,.4)">
-                  <sc-if value="{{ it.hasTag }}"><span style="position:absolute;top:12px;right:12px;background:#f0389b;color:#fff;font-weight:800;font-size:9.5px;padding:3px 7px;border-radius:6px;letter-spacing:.5px">{{ it.tag }}</span></sc-if>
+                  <sc-if value="{{ it.proposed }}"><span style="position:absolute;top:12px;right:12px;background:#eef0ff;color:#4a4ac2;font-weight:800;font-size:9.5px;padding:3px 7px;border-radius:6px">你提案的</span></sc-if>
                   <div style="width:46px;height:46px;border-radius:14px;background:{{ it.gradient }};display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:11px"><svg style="width:25px;height:25px"><use href="#{{ it.icon }}"></use></svg></div>
                   <div style="font-weight:800;font-size:13.5px;color:#1a1f2e;line-height:1.35;min-height:37px">{{ it.name }}</div>
-                  <div style="display:flex;align-items:center;gap:4px;margin:6px 0 12px"><span style="color:#e0a53a;display:flex"><svg style="width:15px;height:15px"><use href="#i-coin"></use></svg></span><span style="font:800 15px 'Baloo 2';color:#1a1f2e">{{ it.costLabel }}</span></div>
+                  <div style="display:flex;align-items:center;gap:4px;margin:6px 0 10px"><span style="color:#e0a53a;display:flex"><svg style="width:15px;height:15px"><use href="#i-coin"></use></svg></span><span style="font:800 15px 'Baloo 2';color:#1a1f2e">{{ it.costLabel }}</span></div>
+                  <sc-if value="{{ it.showProg }}"><div style="height:5px;background:#eef0f6;border-radius:3px;overflow:hidden;margin-bottom:9px"><div style="height:100%;width:{{ it.progPct }};background:linear-gradient(90deg,#e0a53a,#cf9a2f);border-radius:3px"></div></div></sc-if>
                   <button onclick="{{ it.onRedeem }}" style="width:100%;border:0;border-radius:11px;padding:10px;background:{{ it.btnBg }};color:{{ it.btnColor }};font:800 13px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.96)">{{ it.btnText }}</button>
                 </div>
               </sc-for>
