@@ -4224,6 +4224,10 @@
           </sc-if>
           </sc-if>
         </div></div></sc-if>
+    <!-- 版本更新提示條:偵測到雲端有新版 → 點此強制重載繞過快取 -->
+    <sc-if value="{{ updateReady }}">
+      <div onclick="{{ onApplyUpdate }}" style="position:absolute;top:0;left:0;right:0;z-index:44;padding:8px 14px;padding-top:calc(8px + env(safe-area-inset-top));background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 12.5px 'Noto Sans TC';display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;box-shadow:0 4px 14px -6px rgba(91,91,214,.6)">✨ 有新版本,點此更新 →</div>
+    </sc-if>
     <!-- ============ OVERLAYS ============ -->
     <sc-if value="{{ fxShow }}">
       <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(16,18,30,.55);backdrop-filter:blur(3px);animation:scrimIn .3s both;overflow:hidden;z-index:9">

@@ -60,4 +60,11 @@ template_json = json.dumps(template, ensure_ascii=False).replace("</", "<\\/")
 out = loader.replace("@@MANIFEST@@", manifest).replace("@@TEMPLATE@@", template_json)
 (ROOT / "index.html").write_text(out, encoding="utf-8")
 
-print(f"已產生 index.html（{len(out):,} bytes）")
+# 3.5) 版本端點:輕量 version.json 供前端輪詢比對(多裝置版本漂移偵測)
+try:
+    _n = int(_count)
+except Exception:
+    _n = 0
+(ROOT / "version.json").write_text(json.dumps({"n": _n, "v": build_id}, ensure_ascii=False), encoding="utf-8")
+
+print(f"已產生 index.html（{len(out):,} bytes）+ version.json（b{_count}）")

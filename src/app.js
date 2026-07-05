@@ -31,6 +31,8 @@ const dayGap = (a, b) => Math.round((parseYmd(b) - parseYmd(a)) / 86400000);
 const defaultDayMode = (dateStr) => { const d = parseYmd(dateStr), dow = d.getDay(), m = d.getMonth() + 1; if (dow === 0 || dow === 6) return 'home'; return (m === 7 || m === 8) ? 'home' : 'school'; };
 // 版本號:@@BUILD@@ 於 build.py 打包時自動代入(日期 · 建置編號),用來判斷手機/網頁是否同版
 const APP_VERSION = 'v2.0 · @@BUILD@@';
+// 本機建置編號(從版本戳記解析);與雲端 version.json 的 n 比對,偵測有沒有新版
+const LOCAL_BUILD = parseInt((APP_VERSION.match(/b(\d+)/) || [])[1] || '0', 10);
 
 // ===== Supabase 後端(家庭雲端空間)=====
 // publishable key 設計上可公開(靠 RLS 保護),放進前端安全。service_role / DB 密碼永不進前端。
@@ -341,6 +343,7 @@ class Component extends DCLogic {
     deviceMode: null, deviceStep: null, pinGoal: 'view',
     // APP 化手勢(不持久化):slideDir=進場動畫方向('l'/'r'/null);pullRefreshing=下拉刷新中
     slideDir: null, pullRefreshing: false,
+    updateReady: false,   // 偵測到雲端有新版(不持久化)
   };
   toMode(m) { this.setState({ mode: m }); }
   // ===== 家長 PIN(家庭層級,存雲端 families.parent_pin;localStorage 為離線快取)=====
@@ -677,9 +680,12 @@ class Component extends DCLogic {
     if (typeof document !== 'undefined') {
       this._visHandler = () => {
         if (document.visibilityState === 'hidden') { this.recordSession(); this._sessionStart = null; }
-        else if (document.visibilityState === 'visible' && !this._sessionStart) { this._sessionStart = Date.now(); }
+        else if (document.visibilityState === 'visible') { if (!this._sessionStart) this._sessionStart = Date.now(); this.checkVersion(); }
       };
       document.addEventListener('visibilitychange', this._visHandler);
+      // 版本自動更新偵測:載入時查一次 + 回前景查 + 每 30 分鐘查
+      this.checkVersion();
+      this._verPoll = setInterval(() => this.checkVersion(), 30 * 60 * 1000);
       // APP 化手勢:手動掛 document touch 監聽(touchmove 需 passive:false 才能 preventDefault)
       this._tsH = (e) => this._onTouchStart(e);
       this._tmH = (e) => this._onTouchMove(e);
@@ -690,6 +696,19 @@ class Component extends DCLogic {
       document.addEventListener('touchcancel', this._teH, { passive: true });
     }
   }
+  // 版本偵測:抓 version.json(不吃快取),雲端建置編號 > 本機 → 顯示更新提示條
+  checkVersion() {
+    if (this.state.updateReady || LOCAL_BUILD <= 0 || typeof fetch === 'undefined') return;
+    fetch('version.json?t=' + Date.now(), { cache: 'no-store' })   // 時間戳繞過瀏覽器 + CDN 邊緣快取
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { const n = j && typeof j.n === 'number' ? j.n : 0; if (n > LOCAL_BUILD) { this._cloudBuild = n; this.setState({ updateReady: true }); } })
+      .catch(() => {});
+  }
+  // 點更新:換上帶版本 query 的網址強制繞過快取重載(孩子裝置不會有人主動清快取)
+  applyUpdate() {
+    try { const bust = (this._cloudBuild || Date.now()); location.replace(location.pathname + '?v=' + bust); }
+    catch (e) { try { location.reload(); } catch (e2) {} }
+  }
   recordSession() {
     if (!this._sessionStart) return;
     const durationSec = Math.round((Date.now() - this._sessionStart) / 1000);
@@ -697,7 +716,7 @@ class Component extends DCLogic {
     const day = this.state.lastDate || ymd(new Date());
     this.setState(st => ({ checkinEvents: [...(st.checkinEvents || []), { type: 'session', date: day, ts: Date.now(), durationSec }] }));
   }
-  componentWillUnmount() { try { this.recordSession(); if (this._visHandler) document.removeEventListener('visibilitychange', this._visHandler);
+  componentWillUnmount() { try { this.recordSession(); if (this._verPoll) clearInterval(this._verPoll); if (this._visHandler) document.removeEventListener('visibilitychange', this._visHandler);
     if (this._tsH) { document.removeEventListener('touchstart', this._tsH); document.removeEventListener('touchmove', this._tmH); document.removeEventListener('touchend', this._teH); document.removeEventListener('touchcancel', this._teH); } } catch (e) {} }
   componentDidUpdate() {
     try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, proposeKind, retroOpen,
@@ -705,7 +724,7 @@ class Component extends DCLogic {
       kids, currentKidId, kidSwitchOpen, newKidName, newKidAvatar,
       pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm,
       kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage,
-      deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, ...persist } = this.state;
+      deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, updateReady, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
     // 裝置精靈:只要「已登入 + 尚未設定 deviceMode」就顯示 —— 用反應式偵測,不綁 cloudInit 成功與否,
     // 既有已登入裝置(功能上線前就登入的)下次載入也會觸發。guestMode 無 session → 不觸發。
@@ -1323,6 +1342,7 @@ class Component extends DCLogic {
       pullRefreshing: this.state.pullRefreshing,
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
       habits, dailyTasks, jr, shop, rec, appVersion: APP_VERSION,
+      updateReady: !!this.state.updateReady, onApplyUpdate: () => this.applyUpdate(),
       hasDailyTasks: dailyTasks.length > 0, noDailyTasks: dailyTasks.length === 0, pickedLabel: pickedCount + ' 個',
       onExport: () => this.exportBackup(),
       onReset: () => this.resetAll(),
