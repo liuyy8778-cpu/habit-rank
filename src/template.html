@@ -3620,6 +3620,42 @@
 
 <div class="phone">
   <div class="app">
+    <!-- ============ NFC 打卡模式(網址帶 token 時蓋過全部)============ -->
+    <sc-if value="{{ nfcActive }}">
+      <div style="position:absolute;inset:0;z-index:60;background:linear-gradient(160deg,#6d6df0,#5b5bd6);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center">
+        <sc-if value="{{ nfcIsSuccess }}">
+          <div style="width:96px;height:96px;border-radius:32px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:20px;animation:celebPop .5s both"><svg style="width:56px;height:56px"><use href="#i-check"></use></svg></div>
+          <div style="font-weight:900;font-size:24px;color:#fff;margin-bottom:8px">已交機 {{ nfcTime }}</div>
+          <div style="font-size:13.5px;color:rgba(255,255,255,.9);line-height:1.6;max-width:280px">{{ nfcBehLabel }} · {{ nfcSrcLabel }}<br>手機放好,去休息吧 🌙</div>
+        </sc-if>
+        <sc-if value="{{ nfcIsLogin }}">
+          <div style="font-size:44px;margin-bottom:14px">🔑</div>
+          <div style="font-weight:900;font-size:20px;color:#fff;margin-bottom:8px">請先登入</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.9);line-height:1.6;max-width:280px">要先登入這個家庭帳號才能打卡。登入後再嗶一次。</div>
+        </sc-if>
+        <sc-if value="{{ nfcIsInvalid }}">
+          <div style="font-size:44px;margin-bottom:14px">❓</div>
+          <div style="font-weight:900;font-size:20px;color:#fff;margin-bottom:8px">這個打卡點還沒設定</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.9);line-height:1.6;max-width:280px">請家長到「家庭設定 → NFC 打卡點」建立或重新產生。</div>
+        </sc-if>
+        <sc-if value="{{ nfcIsParent }}">
+          <div style="font-size:44px;margin-bottom:14px">👀</div>
+          <div style="font-weight:900;font-size:20px;color:#fff;margin-bottom:8px">這是「{{ nfcKidName }}」的打卡點</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.9);line-height:1.6;max-width:280px">家長裝置只能看,不能替孩子打卡。要用 {{ nfcKidName }} 自己的手機嗶才算。</div>
+        </sc-if>
+        <sc-if value="{{ nfcIsWrongkid }}">
+          <div style="font-size:44px;margin-bottom:14px">🙅</div>
+          <div style="font-weight:900;font-size:20px;color:#fff;margin-bottom:8px">這是「{{ nfcKidName }}」的打卡點喔</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.9);line-height:1.6;max-width:280px">用他自己的手機嗶才算。打卡=本人,這樣才公平。</div>
+        </sc-if>
+        <sc-if value="{{ nfcIsNodevice }}">
+          <div style="font-size:44px;margin-bottom:14px">📱</div>
+          <div style="font-weight:900;font-size:20px;color:#fff;margin-bottom:8px">這台還沒設定是誰的手機</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.9);line-height:1.6;max-width:280px">先回 App 選一次「這是誰的裝置」,才能核對是不是本人打卡。</div>
+        </sc-if>
+        <button onclick="{{ onExitNfc }}" style="margin-top:28px;border:1.5px solid rgba(255,255,255,.6);background:none;border-radius:14px;padding:13px 28px;color:#fff;font:800 14px 'Noto Sans TC';cursor:pointer">回到 App</button>
+      </div>
+    </sc-if>
     <!-- ============ KID ============ -->
     <sc-if value="{{ isKid }}" hint-placeholder-val="{{ true }}">
       <div class="{{ previewClass }}" style="position:absolute;inset:0">
@@ -3986,7 +4022,7 @@
                     <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:15px">
                       <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:13px">
                         <div style="width:38px;height:38px;border-radius:11px;background:#eef0f6;color:#5b5bd6;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#{{ it.icon }}"></use></svg></div>
-                        <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14.5px;color:#1a1f2e">{{ it.label }}</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">孩子回報：{{ it.note }}</div></div>
+                        <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14.5px;color:#1a1f2e">{{ it.label }}</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">孩子回報：{{ it.note }}</div><sc-if value="{{ it.hasSrc }}"><div style="font-size:10.5px;color:#5b5bd6;font-weight:700;margin-top:2px">{{ it.srcLabel }}</div></sc-if></div>
                         <div style="font:700 12px 'Space Grotesk';color:#cf9a2f;white-space:nowrap">+{{ it.reward }}幣</div>
                       </div>
                       <sc-if value="{{ it.wait }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:9px"><button onclick="{{ it.onOk }}" style="flex:1;border:0;border-radius:12px;padding:11px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.97)">通過，入帳</button><button onclick="{{ it.onNo }}" style="border:1.5px solid #e7eaf2;background:none;border-radius:12px;padding:11px 16px;color:#8890a3;font:600 13px 'Noto Sans TC';cursor:pointer">退回</button></div></sc-if>
@@ -4003,7 +4039,7 @@
                     <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:15px">
                       <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:13px">
                         <div style="width:38px;height:38px;border-radius:11px;background:#eaf6f0;color:#2f8a6a;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:20px;height:20px"><use href="#{{ it.icon }}"></use></svg></div>
-                        <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14.5px;color:#1a1f2e">{{ it.label }}</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">孩子回報：{{ it.note }}</div></div>
+                        <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14.5px;color:#1a1f2e">{{ it.label }}</div><div style="font-size:11.5px;color:#8890a3;margin-top:2px">孩子回報：{{ it.note }}</div><sc-if value="{{ it.hasSrc }}"><div style="font-size:10.5px;color:#5b5bd6;font-weight:700;margin-top:2px">{{ it.srcLabel }}</div></sc-if></div>
                         <div style="font:700 12px 'Space Grotesk';color:#cf9a2f;white-space:nowrap">+{{ it.reward }}幣</div>
                       </div>
                       <sc-if value="{{ it.wait }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:9px"><button onclick="{{ it.onOk }}" style="flex:1;border:0;border-radius:12px;padding:11px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.97)">通過，入帳</button><button onclick="{{ it.onNo }}" style="border:1.5px solid #e7eaf2;background:none;border-radius:12px;padding:11px 16px;color:#8890a3;font:600 13px 'Noto Sans TC';cursor:pointer">退回</button></div></sc-if>
@@ -4303,6 +4339,22 @@
                 </div>
               </sc-if>
               <div style="margin-top:24px;border-top:1px dashed #e7eaf2;padding-top:18px">
+                <div style="font-weight:800;font-size:13px;color:#1a1f2e;margin:0 2px 4px">📟 NFC 打卡點</div>
+                <div style="font-size:11px;color:#a6adbe;line-height:1.5;margin:0 2px 12px">每個孩子一個「交機」打卡點。把網址做成 NFC 貼紙(或 QR code)貼在充電座旁,孩子交機時嗶一下即打卡。</div>
+                <sc-if value="{{ hasTokens }}">
+                  <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:10px">
+                    <sc-for list="{{ pTokens }}" as="tk" hint-placeholder-count="0">
+                      <div style="background:#fbfbfe;border:1px solid rgba(20,25,50,.06);border-radius:12px;padding:11px 13px">
+                        <div style="font-weight:700;font-size:12.5px;color:#1a1f2e;margin-bottom:5px">{{ tk.kidName }} · {{ tk.behLabel }}</div>
+                        <div style="font:10.5px/1.5 ui-monospace,monospace;color:#5a6070;word-break:break-all;background:#fff;border-radius:8px;padding:7px 9px;margin-bottom:7px">{{ tk.url }}</div>
+                        <button onclick="{{ tk.onRegen }}" style="border:1.5px solid #f0d8d8;background:#fff;border-radius:9px;padding:6px 11px;color:#c05a5a;font:700 11.5px 'Noto Sans TC';cursor:pointer">重新產生</button>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ canSeedTokens }}"><button onclick="{{ onSeedTokens }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:12px;padding:11px;color:#5b5bd6;font:700 12.5px 'Noto Sans TC';cursor:pointer">為每個孩子建立交機打卡點</button></sc-if>
+              </div>
+              <div style="margin-top:24px;border-top:1px dashed #e7eaf2;padding-top:18px">
                 <div style="font-weight:800;font-size:13px;color:#1a1f2e;margin:0 2px 4px">📊 數據自查(開發用)</div>
                 <div style="font-size:11px;color:#a6adbe;line-height:1.5;margin:0 2px 12px">基線收集中,2–3 週後用來校準獎勵與懲罰。這些不給小孩看。</div>
                 <div style="display:flex;flex-direction:column;gap:8px">
@@ -4389,6 +4441,19 @@
           <div style="display:flex;gap:9px">
             <button onclick="{{ onCancelApprove }}" style="flex:none;border:1.5px solid #e7eaf2;background:#fff;border-radius:12px;padding:12px 16px;color:#8890a3;font:700 13px 'Noto Sans TC';cursor:pointer">取消</button>
             <button onclick="{{ onConfirmApprove }}" style="flex:1;border:0;border-radius:12px;padding:12px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 14px 'Noto Sans TC';cursor:pointer">確認採納</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ tokenRegenShow }}">
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(16,18,30,.55);backdrop-filter:blur(3px);animation:scrimIn .3s both;z-index:12;padding:24px">
+        <div style="width:300px;background:#fff;border-radius:24px;padding:24px 22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.5);animation:celebPop .4s both">
+          <div style="width:52px;height:52px;border-radius:16px;background:#fdf3f3;color:#c05a5a;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px">⚠️</div>
+          <div style="font-weight:900;font-size:16.5px;color:#1a1f2e;text-align:center;margin-bottom:8px">重新產生打卡點?</div>
+          <div style="font-size:12.5px;color:#8890a3;line-height:1.6;text-align:center;margin-bottom:20px">重新產生後,舊貼紙立刻失效,必須用新網址重寫一張貼紙。確定?</div>
+          <div style="display:flex;gap:9px">
+            <button onclick="{{ onCancelRegen }}" style="flex:1;border:1.5px solid #e7eaf2;background:#fff;border-radius:13px;padding:12px;color:#5a6070;font:700 13.5px 'Noto Sans TC';cursor:pointer">取消</button>
+            <button onclick="{{ onConfirmRegen }}" style="flex:1;border:0;border-radius:13px;padding:12px;background:#c05a5a;color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer">確定重新產生</button>
           </div>
         </div>
       </div>
