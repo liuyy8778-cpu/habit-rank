@@ -3778,9 +3778,12 @@
                 <div style="font-size:11.5px;font-weight:700;color:#5b5bd6;margin:0 2px 7px">我的提案</div>
                 <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:13px">
                   <sc-for list="{{ kidProposals }}" as="kp" hint-placeholder-count="0">
-                    <div style="display:flex;align-items:center;gap:9px;background:#fff;border:1px solid rgba(20,25,50,.06);border-radius:12px;padding:10px 12px">
-                      <span style="flex:1;font-size:12.5px;color:#1a1f2e;line-height:1.4">{{ kp.text }}</span>
-                      <span style="font-size:10.5px;font-weight:700;color:{{ kp.statusColor }};background:{{ kp.statusBg }};border-radius:8px;padding:4px 8px;white-space:nowrap">{{ kp.statusLabel }}</span>
+                    <div style="background:#fff;border:1px solid rgba(20,25,50,.06);border-radius:12px;padding:10px 12px">
+                      <div style="display:flex;align-items:center;gap:9px">
+                        <span style="flex:1;font-size:12.5px;color:#1a1f2e;line-height:1.4">{{ kp.text }}</span>
+                        <span style="font-size:10.5px;font-weight:700;color:{{ kp.statusColor }};background:{{ kp.statusBg }};border-radius:8px;padding:4px 8px;white-space:nowrap">{{ kp.statusLabel }}</span>
+                      </div>
+                      <sc-if value="{{ kp.hasEdited }}"><div style="font-size:10.5px;color:#2fae8a;margin-top:5px">✓ {{ kp.editedNote }}</div></sc-if>
                     </div>
                   </sc-for>
                 </div>
@@ -4363,6 +4366,42 @@
           <div style="display:flex;gap:9px">
             <button onclick="{{ onCancelReject }}" style="flex:1;border:1.5px solid #e7eaf2;background:#fff;border-radius:13px;padding:13px;color:#5a6070;font:700 14px 'Noto Sans TC';cursor:pointer">取消</button>
             <button onclick="{{ onDoReject }}" style="flex:1;border:0;border-radius:13px;padding:13px;background:#c05a5a;color:#fff;font:800 14px 'Noto Sans TC';cursor:pointer">確定退回</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ afShow }}">
+      <div style="position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(16,18,30,.5);backdrop-filter:blur(2px);animation:scrimIn .25s both;z-index:12">
+        <div style="width:100%;background:#fff;border-radius:24px 24px 0 0;padding:22px 20px 26px;box-shadow:0 -12px 40px -12px rgba(0,0,0,.35);animation:sheetUp .3s both">
+          <div style="font-weight:900;font-size:16px;color:#1a1f2e;margin-bottom:4px">{{ afTitle }}</div>
+          <div style="font-size:12px;color:#8890a3;line-height:1.55;margin-bottom:14px">可微調名稱/說明/賞金再建入。改動會留「原文→定稿」痕跡,孩子看得到。大幅換內容建議改用婉拒+理由或當面談。</div>
+          <input value="{{ afName }}" oninput="{{ onAfName }}" placeholder="名稱" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:12px;padding:11px 13px;font:400 13.5px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:9px">
+          <input value="{{ afDesc }}" oninput="{{ onAfDesc }}" placeholder="說明(可選)" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:12px;padding:11px 13px;font:400 13.5px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:9px">
+          <input value="{{ afBounty }}" oninput="{{ onAfBounty }}" inputmode="numeric" placeholder="{{ afBountyLabel }}" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:12px;padding:11px 13px;font:400 13.5px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:11px">
+          <sc-if value="{{ afHasCost }}">
+            <div style="background:#f7f8fc;border-radius:11px;padding:10px 12px;margin-bottom:13px;font-size:11.5px;color:#5a6070;line-height:1.7">
+              <div>💰 {{ afIncome }}</div>
+              <sc-if value="{{ afHasBand }}"><div>📏 {{ afBand }}</div></sc-if>
+              <sc-if value="{{ afHasFlag }}"><div style="color:#b5504f;font-weight:700">🚫 {{ afFlag }}</div></sc-if>
+            </div>
+          </sc-if>
+          <div style="display:flex;gap:9px">
+            <button onclick="{{ onCancelApprove }}" style="flex:none;border:1.5px solid #e7eaf2;background:#fff;border-radius:12px;padding:12px 16px;color:#8890a3;font:700 13px 'Noto Sans TC';cursor:pointer">取消</button>
+            <button onclick="{{ onConfirmApprove }}" style="flex:1;border:0;border-radius:12px;padding:12px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 14px 'Noto Sans TC';cursor:pointer">確認採納</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ termRemoveShow }}">
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(16,18,30,.55);backdrop-filter:blur(3px);animation:scrimIn .3s both;z-index:12;padding:24px">
+        <div style="width:300px;background:#fff;border-radius:24px;padding:24px 22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.5);animation:celebPop .4s both">
+          <div style="font-weight:900;font-size:16px;color:#1a1f2e;margin-bottom:6px">移除條款</div>
+          <div style="font-size:13px;color:#1a1f2e;background:#f7f8fc;border-radius:11px;padding:11px 13px;line-height:1.5;margin-bottom:12px">「{{ termRemoveText }}」</div>
+          <div style="font-size:12px;color:#8890a3;line-height:1.6;margin-bottom:12px">會從公約內文移除,孩子端即時看不到;修訂史留一筆撤銷紀錄(可查、不刪)。</div>
+          <input value="{{ termRemoveReason }}" oninput="{{ onRemoveReason }}" placeholder="原因(可選,例:改列任務池)" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:12px;padding:11px 13px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:16px">
+          <div style="display:flex;gap:9px">
+            <button onclick="{{ onCancelRemoveTerm }}" style="flex:1;border:1.5px solid #e7eaf2;background:#fff;border-radius:13px;padding:12px;color:#5a6070;font:700 13.5px 'Noto Sans TC';cursor:pointer">取消</button>
+            <button onclick="{{ onConfirmRemoveTerm }}" style="flex:1;border:0;border-radius:13px;padding:12px;background:#c05a5a;color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer">確定移除</button>
           </div>
         </div>
       </div>

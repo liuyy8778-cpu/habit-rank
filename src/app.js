@@ -385,6 +385,8 @@ class Component extends DCLogic {
     // 家長 PIN 關卡(不持久化;PIN 本身另存 device key habitRank_pin)
     pinMode: null, pinEntry: '', pinError: '', pinStage: 1, parentUnlocked: false,
     rejectConfirm: null, // #2:退回二次確認對話框(不持久化)
+    termRemove: null,    // 公約條款移除確認 + 原因(不持久化)
+    approveForm: null,   // 提案採納前微調表單(任務/獎品;不持久化)
     // 孩子端身分保護:切換時的 PIN 閘門(不持久化;孩子密碼存雲端 kids.pin + 記憶體 _kidPins)
     kidPinMode: null, kidPinTarget: null, kidPinEntry: '', kidPinError: '', kidPinStage: 1,
     // 裝置模式(不持久化;鏡像 localStorage habitRank_device)。deviceStep=一次性精靈;pinGoal=家長 PIN 用途
@@ -692,7 +694,19 @@ class Component extends DCLogic {
   // ===== 家庭公約 =====
   setNewTerm(e) { this.setState({ newTerm: e.target.value }); }
   addTerm() { this.setState(st => { const t = (st.newTerm || '').trim(); if (!t) return null; return { newTerm: '', covenant: { ...st.covenant, terms: [...st.covenant.terms, t] } }; }); }
-  delTerm(i) { this.setState(st => ({ covenant: { ...st.covenant, terms: st.covenant.terms.filter((_, x) => x !== i) } })); }
+  // 公約條款移除 = 修訂事件:從 active terms 拿掉 + append 一筆撤銷紀錄到修訂史(禁止直接刪紀錄,審計留痕)
+  askRemoveTerm(i) { this.setState(st => ({ termRemove: { idx: i, text: st.covenant.terms[i] || '', reason: '' } })); }
+  setRemoveReason(e) { const v = e.target.value; this.setState(st => (st.termRemove ? { termRemove: { ...st.termRemove, reason: v } } : null)); }
+  cancelRemoveTerm() { this.setState({ termRemove: null }); }
+  confirmRemoveTerm() {
+    this.setState(st => {
+      const tr = st.termRemove; if (!tr) return { termRemove: null };
+      const reason = (tr.reason || '').trim();
+      const terms = st.covenant.terms.filter((_, x) => x !== tr.idx);
+      const note = '移除:' + tr.text + (reason ? ',原因:' + reason : '');
+      return { termRemove: null, covenant: { ...st.covenant, terms, history: [...(st.covenant.history || []), { v: st.covenant.version, at: ymd(new Date()), note }] } };
+    });
+  }
   setSigName(role, e) { const v = e.target.value; this.setState(st => ({ covenant: { ...st.covenant, signatures: { ...st.covenant.signatures, [role]: { ...st.covenant.signatures[role], name: v } } } })); }
   setSched(dayType, e) { const v = e.target.value; this.setState(st => ({ covenant: { ...st.covenant, schedules: { ...st.covenant.schedules, [dayType]: v } } })); }
   sealStart(role) { try { clearTimeout(this._sealT); } catch (e) {} this._sealT = setTimeout(() => this.doSeal(role), CONFIG.sealHoldMs); this.setState({ sealing: role }); }
@@ -741,6 +755,35 @@ class Component extends DCLogic {
   // Bug 1b:孩子提錯入口是必然事件——家長可將提案改道至正確管道(covenant / reward / task),之後走正確流程處理
   reclassifyProposal(id, kind) {
     this.setState(st => ({ covenant: { ...st.covenant, proposals: (st.covenant.proposals || []).map(p => (p.id === id && p.status === 'pending') ? { ...p, kind } : p) } }));
+  }
+  // 採納前微調(任務/獎品通用):採納 → 預填可編輯表單(名稱/說明/賞金),確認才建入;留「原文→定稿」痕跡
+  startApprove(id) {
+    this.setState(st => {
+      const p = (st.covenant.proposals || []).find(x => x.id === id && x.status === 'pending');
+      if (!p) return null;
+      const bounty = parseInt((p.reason || '').replace(/[^0-9]/g, ''), 10) || 0;
+      return { approveForm: { id, kind: p.kind || 'covenant', name: p.text, desc: '', bounty: bounty ? String(bounty) : '' } };
+    });
+  }
+  setApf(field, e) { const v = e.target.value; this.setState(st => (st.approveForm ? { approveForm: { ...st.approveForm, [field]: v } } : null)); }
+  cancelApprove() { this.setState({ approveForm: null }); }
+  confirmApprove() {
+    this.setState(st => {
+      const af = st.approveForm; if (!af) return { approveForm: null };
+      const p = (st.covenant.proposals || []).find(x => x.id === af.id && x.status === 'pending');
+      if (!p) return { approveForm: null };
+      const name = (af.name || '').trim() || p.text, desc = (af.desc || '').trim();
+      const bounty = parseInt((af.bounty || '').replace(/[^0-9]/g, ''), 10) || 0;
+      const origBounty = parseInt((p.reason || '').replace(/[^0-9]/g, ''), 10) || 0;
+      const edited = name !== p.text || !!desc || bounty !== origBounty;
+      const final = { text: name, desc, bounty };
+      const proposals = st.covenant.proposals.map(x => x === p ? { ...x, status: 'approved', original: { text: p.text, reason: p.reason }, final } : x);
+      const kindCn = p.kind === 'reward' ? '獎品' : '任務';
+      const note = '採納' + kindCn + '提案:' + (edited ? (p.text + ' → ' + name) : name) + (bounty ? '(' + bounty + '幣)' : '');
+      const out = { approveForm: null, covenant: { ...st.covenant, proposals, history: [...(st.covenant.history || []), { v: st.covenant.version, at: ymd(new Date()), note }] } };
+      if (p.kind === 'reward') out.customShop = [...(st.customShop || []), { id: newId(), name, cost: bounty > 0 ? bounty : 100, desc, unlockRank: null, icon: 'i-gift', g: 'magenta', proposed: true, createdAt: st.lastDate }];
+      return out;
+    });
   }
   setNewPledge(e) { const v = e.target.value; this.setState({ newPledge: v }); }
   addPledge() { this.setState(st => { const t = (st.newPledge || '').trim(); if (!t) return null; return { newPledge: '', covenant: { ...st.covenant, pledges: [...(st.covenant.pledges || []), { id: newId(), text: t }] } }; }); }
@@ -838,7 +881,7 @@ class Component extends DCLogic {
     try { const { celebrate, fx, gradModal, sealing, missAsk, proposeOpen, proposeKind, retroOpen,
       authReady, session, authEmail, authSent, authError, supaOff, guestMode, syncStatus,
       kids, currentKidId, kidSwitchOpen, newKidName, newKidAvatar,
-      pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm,
+      pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm, termRemove, approveForm,
       kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage,
       deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, updateReady, schedInfoOpen, preview,
       sfOpen, sfEdit, sfName, sfCost, sfDesc, sfRank, ...persist } = this.state;
@@ -1401,6 +1444,12 @@ class Component extends DCLogic {
     const sfCostNum = parseInt((S.sfCost || '').replace(/[^0-9]/g, ''), 10) || 0;
     const sfDays = (sfCostNum > 0 && kidDailyCoin > 0) ? Math.round(sfCostNum / kidDailyCoin * 10) / 10 : null;
     const sfBand = rewardPriceBand(sfDays), sfFlag = shopRuleFlag(S.sfName);
+    // 採納微調表單的定價輔助
+    const afIsReward2 = !!(S.approveForm && S.approveForm.kind === 'reward');
+    const afCostNum = parseInt(((S.approveForm && S.approveForm.bounty) || '').replace(/[^0-9]/g, ''), 10) || 0;
+    const afDays = (afCostNum > 0 && kidDailyCoin > 0) ? Math.round(afCostNum / kidDailyCoin * 10) / 10 : null;
+    const afBandObj = afIsReward2 ? rewardPriceBand(afDays) : (afCostNum > 0 ? taskPriceBand(afCostNum) : null);
+    const afFlagStr = afIsReward2 ? shopRuleFlag((S.approveForm && S.approveForm.name) || '') : null;
     const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
     const wr = weeklyReport(S.checkinEvents, today, S.taskOn); // B6:真實週報 + 一句話
     const probe = dataProbe(S.checkinEvents, today); // #3:反向指標數據自查
@@ -1551,7 +1600,9 @@ class Component extends DCLogic {
       detailRankPct: todayRank.rankPct, detailRankNext: todayRank.rankNextLabel, detailRate: (wr.k1Label || '—'),
       detailTrust: trustLines, detailHasTrust: trustLines.length > 0,
       covVersion: S.covenant.version, newTerm: S.newTerm, onNewTerm: (e) => this.setNewTerm(e), onAddTerm: () => this.addTerm(),
-      covTerms: S.covenant.terms.map((t, i) => ({ text: t, onDel: () => this.delTerm(i) })),
+      covTerms: S.covenant.terms.map((t, i) => ({ text: t, onDel: () => this.askRemoveTerm(i) })),
+      termRemoveShow: !!S.termRemove, termRemoveText: S.termRemove ? S.termRemove.text : '', termRemoveReason: S.termRemove ? S.termRemove.reason : '',
+      onRemoveReason: (e) => this.setRemoveReason(e), onConfirmRemoveTerm: () => this.confirmRemoveTerm(), onCancelRemoveTerm: () => this.cancelRemoveTerm(),
       schedWeekday: S.covenant.schedules.weekday, schedWeekend: S.covenant.schedules.weekend,
       onSchedWeekday: (e) => this.setSched('weekday', e), onSchedWeekend: (e) => this.setSched('weekend', e),
       sigChildName: S.covenant.signatures.child.name, sigChildSealed: !!S.covenant.signatures.child.at, sigChildAt: S.covenant.signatures.child.at,
@@ -1575,10 +1626,14 @@ class Component extends DCLogic {
           : '寫下你想改的規則、和為什麼。爸媽會看到，通過就會更新公約。這是你的聲音。'),
       propTextPlaceholder: S.proposeKind === 'reward' ? '你想要什麼?(例:選一部電影全家一起看)' : (S.proposeKind === 'task' ? '你想多做什麼?(例:每天整理書桌)' : '想改成…(例:上學日交機改成 22:00)'),
       propReasonPlaceholder: S.proposeKind === 'reward' ? '覺得值多少幣?(開個價)' : (S.proposeKind === 'task' ? '覺得值多少幣?(開個價,例:8)' : '為什麼?(說清楚理由，比較有說服力)'),
-      kidProposals: (S.covenant.proposals || []).slice().reverse().map(p => ({ text: (p.kind === 'reward' ? '🎁 獎品:' : (p.kind === 'task' ? '🧩 任務:' : '📜 公約:')) + p.text,
-        statusLabel: p.status === 'pending' ? '審核中' : (p.status === 'approved' ? '已採納 ✓' : '這次沒採納'),
-        statusColor: p.status === 'pending' ? '#cf9a2f' : (p.status === 'approved' ? '#2fae8a' : '#a6adbe'),
-        statusBg: p.status === 'pending' ? '#f6efe0' : (p.status === 'approved' ? '#e7f6f0' : '#f2f3f7') })),
+      kidProposals: (S.covenant.proposals || []).slice().reverse().map(p => {
+        const edited = p.status === 'approved' && p.final && p.final.text && p.final.text !== p.text;   // 家長微調過 → 孩子看得到定稿
+        return { text: (p.kind === 'reward' ? '🎁 獎品:' : (p.kind === 'task' ? '🧩 任務:' : '📜 公約:')) + p.text,
+          statusLabel: p.status === 'pending' ? '審核中' : (p.status === 'approved' ? '已採納 ✓' : '這次沒採納'),
+          statusColor: p.status === 'pending' ? '#cf9a2f' : (p.status === 'approved' ? '#2fae8a' : '#a6adbe'),
+          statusBg: p.status === 'pending' ? '#f6efe0' : (p.status === 'approved' ? '#e7f6f0' : '#f2f3f7'),
+          hasEdited: !!edited, editedNote: edited ? ('以此版本上架:' + p.final.text) : '' };
+      }),
       kidHasProposals: (S.covenant.proposals || []).length > 0,
       // Bug 2:孩子端「家庭公約」實際條文(採納即修法,白紙黑字看得到)+ 來源標註
       covTermsKid: (S.covenant.terms || []).map(t => { const pv = termProvenance(S.covenant.history, t); return { text: t, hasSource: !!pv, sourceLabel: pv ? ((pv.at || '').slice(5) + ' 由 ' + pv.by + ' 提案加入') : '' }; }),
@@ -1616,9 +1671,20 @@ class Component extends DCLogic {
           checklist: isReward
             ? '螢幕時間/裝置額度? · 社交需求標價? · 定價對過尺? · 確定性無隨機?'
             : '與核心習慣重複計酬? · 是「多做的行動」而非「沒有違規」? · 完成可驗證? · 價格對過定價尺?',
-          onOk: () => this.decideProposal(p.id, true), onNo: () => this.decideProposal(p.id, false) };
+          // 任務/獎品:採納 → 進微調表單;公約:直接加入(可先改道)
+          onOk: () => (priced ? this.startApprove(p.id) : this.decideProposal(p.id, true)), onNo: () => this.decideProposal(p.id, false) };
       }),
       pHasProposals: (S.covenant.proposals || []).some(p => p.status === 'pending'),
+      // 採納前微調表單(任務/獎品)+ 定價輔助
+      afShow: !!S.approveForm, afIsReward: !!(S.approveForm && S.approveForm.kind === 'reward'),
+      afTitle: (S.approveForm && S.approveForm.kind === 'reward') ? '採納並上架獎品(可微調)' : '採納並建入任務(可微調)',
+      afName: S.approveForm ? S.approveForm.name : '', afDesc: S.approveForm ? S.approveForm.desc : '', afBounty: S.approveForm ? S.approveForm.bounty : '',
+      onAfName: (e) => this.setApf('name', e), onAfDesc: (e) => this.setApf('desc', e), onAfBounty: (e) => this.setApf('bounty', e),
+      onConfirmApprove: () => this.confirmApprove(), onCancelApprove: () => this.cancelApprove(),
+      afBountyLabel: (S.approveForm && S.approveForm.kind === 'reward') ? '價格(幣)' : '賞金(幣)',
+      afHasCost: afCostNum > 0, afIncome: afDays != null ? ('≈ 他 ' + afDays + ' 天收入') : '近14天尚無收入可換算',
+      afBand: afBandObj ? (afIsReward2 ? afBandObj.band : ('任務池尺 ' + afBandObj.lo + '–' + afBandObj.hi + ' 幣 · ' + afBandObj.band)) : '', afHasBand: !!afBandObj,
+      afFlag: afFlagStr || '', afHasFlag: !!afFlagStr,
       // 家長端:承諾管理 + 修訂紀錄
       newPledge: S.newPledge, onNewPledge: (e) => this.setNewPledge(e), onAddPledge: () => this.addPledge(),
       covPledges: (S.covenant.pledges || []).map(p => { const done = !!(S.pledgeDone && S.pledgeDone[p.id + '::' + today]); return { id: p.id, text: p.text, onDel: () => this.delPledge(p.id), onToggle: () => this.togglePledge(p.id),
