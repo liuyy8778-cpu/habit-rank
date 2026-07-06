@@ -31,6 +31,29 @@ const dayGap = (a, b) => Math.round((parseYmd(b) - parseYmd(a)) / 86400000);
 const defaultDayMode = (dateStr) => { const d = parseYmd(dateStr), dow = d.getDay(), m = d.getMonth() + 1; if (dow === 0 || dow === 6) return 'home'; return (m === 7 || m === 8) ? 'home' : 'school'; };
 // 版本號:@@BUILD@@ 於 build.py 打包時自動代入(日期 · 建置編號),用來判斷手機/網頁是否同版
 const APP_VERSION = 'v2.0 · @@BUILD@@';
+// ===== 規則頁「阿爸的承諾」(靜態;改規則就改這裡的常數 + 日期,再跑 build.py)=====
+const RULES_UPDATED = '2026-07-07';
+const RULES_TITLE = '🏛️ 阿爸的承諾';
+const RULES_SUBTITLE = '本頁規則大於一切口頭說法';
+const RULES_SECTIONS = [
+  { h: '一、你的錢幣', items: [
+    '你賺到的錢幣就是你的，永遠不會被沒收',
+    '錢幣不會因為任何處罰、吵架、或表現不好而扣除'] },
+  { h: '二、誠實最大', items: [
+    '沒做到就照實回報，不會被罵，紀錄不會歸零',
+    '誠實回報永遠比假裝完美更有價值'] },
+  { h: '三、規則只有一個改法方向（單向棘輪）', items: [
+    '對你們「有利」的改動：馬上生效（例：降價、上新商品、新的賺幣方式）',
+    '對你們「不利」的改動：提前 7 天公告（例：漲價、調整規則）'] },
+  { h: '四、商城異動規則', items: [
+    '降價、上新品 → 馬上生效',
+    '漲價 → 提前 7 天公告，公告期間仍可用「舊價」購買',
+    '下架 → 提前 7 天公告；如果你已經在存錢要買它，跟阿爸講，一定提供等值的替代選擇（祖父條款）'] },
+  { h: '五、永久保證', items: [
+    '螢幕使用時間永遠不會出現在商城裡',
+    '兄弟姊妹的商品價格一律相同',
+    '覺得哪裡不合理、發現 bug → 直接跟阿爸講'] },
+];
 // 本機建置編號(從版本戳記解析);與雲端 version.json 的 n 比對,偵測有沒有新版
 const LOCAL_BUILD = parseInt((APP_VERSION.match(/b(\d+)/) || [])[1] || '0', 10);
 
@@ -408,6 +431,7 @@ class Component extends DCLogic {
     termRemove: null,    // 公約條款移除確認 + 原因(不持久化)
     approveForm: null,   // 提案採納前微調表單(任務/獎品;不持久化)
     nfcToken: null, nfcSrc: 'nfc', tokenRegen: null,   // NFC 打卡(不持久化);tokenRegen=重新產生二次確認
+    rulesOpen: false,   // 規則頁「阿爸的承諾」overlay(不持久化)
     // 孩子端身分保護:切換時的 PIN 閘門(不持久化;孩子密碼存雲端 kids.pin + 記憶體 _kidPins)
     kidPinMode: null, kidPinTarget: null, kidPinEntry: '', kidPinError: '', kidPinStage: 1,
     // 裝置模式(不持久化;鏡像 localStorage habitRank_device)。deviceStep=一次性精靈;pinGoal=家長 PIN 用途
@@ -419,6 +443,8 @@ class Component extends DCLogic {
     preview: false,       // 家長裝置唯讀檢視孩子畫面(不持久化)
   };
   toMode(m) { this.setState({ mode: m }); }
+  openRules() { this.setState({ rulesOpen: true }); }
+  closeRules() { this.setState({ rulesOpen: false }); }
   // ===== 家長 PIN(家庭層級,存雲端 families.parent_pin;localStorage 為離線快取)=====
   _readPin() { if (this._parentPin != null) return this._parentPin; try { return localStorage.getItem('habitRank_pin'); } catch (e) { return null; } }
   _writePin(p) {                                                 // 寫記憶體 + 本機快取 + 雲端(家庭唯一)
@@ -945,7 +971,7 @@ class Component extends DCLogic {
       pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm, termRemove, approveForm,
       kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage,
       deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, updateReady, schedInfoOpen, preview,
-      sfOpen, sfEdit, sfName, sfCost, sfDesc, sfRank, nfcToken, nfcSrc, tokenRegen, ...persist } = this.state;
+      sfOpen, sfEdit, sfName, sfCost, sfDesc, sfRank, nfcToken, nfcSrc, tokenRegen, rulesOpen, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
     // 裝置精靈:只要「已登入 + 尚未設定 deviceMode」就顯示 —— 用反應式偵測,不綁 cloudInit 成功與否,
     // 既有已登入裝置(功能上線前就登入的)下次載入也會觸發。guestMode 無 session → 不觸發。
@@ -1756,6 +1782,10 @@ class Component extends DCLogic {
       }),
       pHasProposals: (S.covenant.proposals || []).some(p => p.status === 'pending'),
       // ===== NFC 打卡畫面 =====
+      // ===== 規則頁「阿爸的承諾」=====
+      rulesOpen: !!S.rulesOpen, onOpenRules: () => this.openRules(), onCloseRules: () => this.closeRules(),
+      rulesTitle: RULES_TITLE, rulesSubtitle: RULES_SUBTITLE, rulesUpdated: RULES_UPDATED,
+      rulesSections: RULES_SECTIONS.map(s => ({ h: s.h, items: s.items.map(t => ({ t })) })),
       nfcActive: !!S.nfcToken, onExitNfc: () => this.exitNfc(),
       nfcIsLogin: nfcSt === 'login', nfcIsInvalid: nfcSt === 'invalid', nfcIsParent: nfcSt === 'parent',
       nfcIsNodevice: nfcSt === 'nodevice', nfcIsWrongkid: nfcSt === 'wrongkid', nfcIsSuccess: nfcSt === 'go' || nfcSt === 'done',
