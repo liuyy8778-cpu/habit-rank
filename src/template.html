@@ -3880,6 +3880,7 @@
                   <div style="font-weight:800;font-size:13.5px;color:#1a1f2e;line-height:1.35;min-height:37px">{{ it.name }}</div>
                   <div style="display:flex;align-items:center;gap:4px;margin:6px 0 10px"><span style="color:#e0a53a;display:flex"><svg style="width:15px;height:15px"><use href="#i-coin"></use></svg></span><span style="font:800 15px 'Baloo 2';color:#1a1f2e">{{ it.costLabel }}</span></div>
                   <sc-if value="{{ it.showProg }}"><div style="height:5px;background:#eef0f6;border-radius:3px;overflow:hidden;margin-bottom:9px"><div style="height:100%;width:{{ it.progPct }};background:linear-gradient(90deg,#e0a53a,#cf9a2f);border-radius:3px"></div></div></sc-if>
+                  <sc-if value="{{ it.hasAnnounce }}"><div style="font-size:10px;color:#9c6b16;background:#fbf3e2;border-radius:7px;padding:5px 7px;margin-bottom:8px;line-height:1.4">{{ it.announce }}</div></sc-if>
                   <button onclick="{{ it.onRedeem }}" style="width:100%;border:0;border-radius:11px;padding:10px;background:{{ it.btnBg }};color:{{ it.btnColor }};font:800 13px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.96)">{{ it.btnText }}</button>
                 </div>
               </sc-for>
@@ -4133,7 +4134,51 @@
                   </div>
                 </sc-for>
               </div>
-              <button style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:14px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer">+ 新增商品</button>
+              <sc-if value="{{ hasCustomShop }}">
+                <div style="font-weight:800;font-size:14.5px;color:#1a1f2e;margin:4px 2px 4px">自建 / 孩子提案的商品</div>
+                <div style="font-size:12px;color:#8890a3;margin:0 2px 12px">可編輯定價/下架;漲價與下架走 7 天預告(冷靜期可取消)</div>
+                <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+                  <sc-for list="{{ pCustomShop }}" as="c" hint-placeholder-count="0">
+                    <div style="background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:13px 14px">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                        <span style="flex:1;font-weight:700;font-size:13.5px;color:#1a1f2e">{{ c.name }}</span>
+                        <sc-if value="{{ c.proposed }}"><span style="background:#eef0ff;color:#4a4ac2;font-weight:800;font-size:9px;padding:2px 6px;border-radius:5px">你提案的</span></sc-if>
+                        <span style="font:700 12px 'Space Grotesk';color:#cf9a2f">{{ c.costLabel }}</span>
+                      </div>
+                      <sc-if value="{{ c.hasRank }}"><div style="font-size:11px;color:#8890a3;margin-bottom:6px">🏷 {{ c.rankLabel }}</div></sc-if>
+                      <sc-if value="{{ c.hasPending }}"><div style="font-size:11px;color:#9c6b16;background:#fbf3e2;border-radius:8px;padding:6px 9px;margin-bottom:8px">⏳ {{ c.pendingLabel }} <button onclick="{{ c.onCancel }}" style="border:0;background:none;color:#5b5bd6;font-weight:700;cursor:pointer;padding:0 4px">取消排程</button></div></sc-if>
+                      <div style="display:flex;gap:8px">
+                        <button onclick="{{ c.onEdit }}" style="flex:1;border:1.5px solid #d9dcff;background:#fff;border-radius:10px;padding:8px;color:#5b5bd6;font:700 12px 'Noto Sans TC';cursor:pointer">編輯</button>
+                        <button onclick="{{ c.onDelist }}" style="flex:1;border:1.5px solid #e7eaf2;background:#fff;border-radius:10px;padding:8px;color:#8890a3;font:600 12px 'Noto Sans TC';cursor:pointer">排程下架</button>
+                        <button onclick="{{ c.onDel }}" style="border:1.5px solid #f0d8d8;background:#fff;border-radius:10px;padding:8px 11px;color:#c05a5a;font:700 12px 'Noto Sans TC';cursor:pointer">刪</button>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <button onclick="{{ onOpenShopForm }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:14px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer">+ 新增商品</button>
+              <sc-if value="{{ sfOpen }}">
+                <div style="background:#fff;border:1.5px solid #d9dcff;border-radius:16px;padding:15px;margin-top:12px;animation:cardIn .3s both">
+                  <div style="font-weight:800;font-size:14px;color:#1a1f2e;margin-bottom:12px">{{ sfFormTitle }}</div>
+                  <input value="{{ sfName }}" oninput="{{ onSfName }}" placeholder="商品名稱(例:選一部電影全家看)" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:11px;padding:11px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:9px">
+                  <input value="{{ sfCost }}" oninput="{{ onSfCost }}" inputmode="numeric" placeholder="價格(幣)" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:11px;padding:11px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:9px">
+                  <input value="{{ sfDesc }}" oninput="{{ onSfDesc }}" placeholder="說明(可選)" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:11px;padding:11px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:9px">
+                  <select value="{{ sfRankVal }}" onchange="{{ onSfRank }}" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:11px;padding:11px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:11px;background:#fff">
+                    <sc-for list="{{ sfRankOptions }}" as="o" hint-placeholder-count="7"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+                  </select>
+                  <sc-if value="{{ sfHasCost }}">
+                    <div style="background:#f7f8fc;border-radius:11px;padding:10px 12px;margin-bottom:11px;font-size:11.5px;color:#5a6070;line-height:1.7">
+                      <div>💰 {{ sfIncome }}</div>
+                      <sc-if value="{{ sfHasBand }}"><div>📏 商城定價尺:{{ sfBand }}</div></sc-if>
+                      <sc-if value="{{ sfHasFlag }}"><div style="color:#b5504f;font-weight:700">🚫 {{ sfFlag }}</div></sc-if>
+                    </div>
+                  </sc-if>
+                  <div style="display:flex;gap:9px">
+                    <button onclick="{{ onCloseShopForm }}" style="flex:none;border:1.5px solid #e7eaf2;background:#fff;border-radius:11px;padding:11px 16px;color:#8890a3;font:700 13px 'Noto Sans TC';cursor:pointer">取消</button>
+                    <button onclick="{{ onSaveShop }}" style="flex:1;border:0;border-radius:11px;padding:11px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer">儲存</button>
+                  </div>
+                </div>
+              </sc-if>
             </div>
           </sc-if>
           <sc-if value="{{ pmHabits }}">

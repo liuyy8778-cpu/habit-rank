@@ -366,6 +366,9 @@ class Component extends DCLogic {
     newTerm: '', sealing: null, missAsk: null,
     propText: '', propReason: '', newPledge: '', pledgeDone: {}, proposeOpen: false, proposeKind: 'covenant', pendingDeletes: [],
     listed: { s2: true, s5: true, s6: true, s7: true, s8: true },
+    customShop: [],   // Phase 2:家長自建/孩子提案核准的商城商品(family 共享,上雲 covenant.custom_shop)
+    // 商城表單(不持久化)
+    sfOpen: false, sfEdit: null, sfName: '', sfCost: '', sfDesc: '', sfRank: '',
     redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
     // 登入狀態(不持久化):authReady=已檢查 session,session=已登入,supaOff=後端不可用時退回本機
@@ -637,6 +640,37 @@ class Component extends DCLogic {
   toggleTaskOn(id) { this.setState(st => ({ taskOn: { ...st.taskOn, [id]: !st.taskOn[id] } })); }
   unlockTask(id) { this.setState(st => ({ manualUnlock: { ...st.manualUnlock, [id]: true }, taskOn: { ...st.taskOn, [id]: true } })); } // 家長最大:提前解鎖並啟用
   toggleList(id) { this.setState(st => ({ listed: { ...st.listed, [id]: st.listed[id] === false } })); } // 缺鍵視為上架,點一下就下架
+  // ===== Phase 2:商城 CRUD(家長端)=====
+  openShopForm(it) {
+    if (it) this.setState({ sfOpen: true, sfEdit: it.id, sfName: it.name, sfCost: String(it.cost), sfDesc: it.desc || '', sfRank: (it.unlockRank != null ? String(it.unlockRank) : '') });
+    else this.setState({ sfOpen: true, sfEdit: null, sfName: '', sfCost: '', sfDesc: '', sfRank: '' });
+  }
+  closeShopForm() { this.setState({ sfOpen: false, sfEdit: null, sfName: '', sfCost: '', sfDesc: '', sfRank: '' }); }
+  setSf(field, e) { this.setState({ ['sf' + field]: e.target.value }); }
+  saveShopItem() {
+    this.setState(st => {
+      const name = (st.sfName || '').trim(), cost = parseInt((st.sfCost || '').replace(/[^0-9]/g, ''), 10) || 0;
+      if (!name || cost <= 0) return { sfOpen: false, sfEdit: null };
+      const rank = st.sfRank !== '' ? (parseInt(st.sfRank, 10) || 0) : null;
+      const desc = (st.sfDesc || '').trim();
+      let list = [...(st.customShop || [])];
+      if (st.sfEdit) {                                            // 編輯:name/desc/rank 即時;漲價走 7 天保價、降價即時
+        list = list.map(x => {
+          if (x.id !== st.sfEdit) return x;
+          const up = { ...x, name, desc, unlockRank: rank };
+          if (cost > x.cost) up.pending = { type: 'price', newCost: cost, effAt: dateMinus(st.lastDate, -7) };
+          else { up.cost = cost; if (up.pending && up.pending.type === 'price') delete up.pending; }
+          return up;
+        });
+      } else {                                                   // 新增即時上架
+        list.push({ id: newId(), name, cost, desc, unlockRank: rank, icon: 'i-gift', g: 'magenta', proposed: false, createdAt: st.lastDate });
+      }
+      return { customShop: list, sfOpen: false, sfEdit: null, sfName: '', sfCost: '', sfDesc: '', sfRank: '' };
+    });
+  }
+  scheduleDelist(id) { this.setState(st => ({ customShop: (st.customShop || []).map(x => x.id === id ? { ...x, pending: { type: 'delist', effAt: dateMinus(st.lastDate, -7) } } : x) })); }
+  cancelSchedule(id) { this.setState(st => ({ customShop: (st.customShop || []).map(x => { if (x.id !== id) return x; const y = { ...x }; delete y.pending; return y; }) })); } // 冷靜期可逆
+  delCustomShop(id) { this.setState(st => ({ customShop: (st.customShop || []).filter(x => x.id !== id) })); } // 尚未公告的新增可直接刪
   jrSel(i) { this.setState({ jrSel: i }); }
   toggleSchedInfo() { this.setState(st => ({ schedInfoOpen: !st.schedInfoOpen })); }
   useProtect() { if (this.state.preview) return; this.setState(st => st.protects > 0 && !st.saved ? { protects: st.protects - 1, streak: st.streak + 1, saved: true } : null); }
@@ -682,10 +716,15 @@ class Component extends DCLogic {
       if (!p) return null;
       const proposals = st.covenant.proposals.map(x => x === p ? { ...x, status: approve ? 'approved' : 'rejected' } : x);
       if (!approve) return { covenant: { ...st.covenant, proposals } };
-      if (p.kind === 'task' || p.kind === 'reward') {              // 任務 / 獎品提案:不動公約條款,只留採納紀錄(實際上架為 Phase 2)
+      if (p.kind === 'task' || p.kind === 'reward') {              // 任務 / 獎品提案:不動公約條款,留採納紀錄
         const kindCn = p.kind === 'reward' ? '獎品提案' : '任務提案';
         const note = '採納' + kindCn + ':' + p.text + (p.reason ? '(開價 ' + p.reason + ')' : '');
-        return { covenant: { ...st.covenant, proposals, history: [...(st.covenant.history || []), { v: st.covenant.version, at: ymd(new Date()), note }] } };
+        const out = { covenant: { ...st.covenant, proposals, history: [...(st.covenant.history || []), { v: st.covenant.version, at: ymd(new Date()), note }] } };
+        if (p.kind === 'reward') {                                 // 核准獎品提案 → 建入商城,掛「你提案的」角標(可事後編輯定價)
+          const cost = parseInt((p.reason || '').replace(/[^0-9]/g, ''), 10) || 0;
+          out.customShop = [...(st.customShop || []), { id: newId(), name: p.text, cost: cost > 0 ? cost : 100, desc: '', unlockRank: null, icon: 'i-gift', g: 'magenta', proposed: true, createdAt: st.lastDate }];
+        }
+        return out;
       }
       return { covenant: { ...st.covenant, proposals, terms: [...st.covenant.terms, p.text],
         history: [...(st.covenant.history || []), { v: st.covenant.version, at: ymd(new Date()), note: '採納孩子提案:' + p.text }] } };
@@ -789,7 +828,8 @@ class Component extends DCLogic {
       kids, currentKidId, kidSwitchOpen, newKidName, newKidAvatar,
       pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm,
       kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage,
-      deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, updateReady, schedInfoOpen, preview, ...persist } = this.state;
+      deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, updateReady, schedInfoOpen, preview,
+      sfOpen, sfEdit, sfName, sfCost, sfDesc, sfRank, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
     // 裝置精靈:只要「已登入 + 尚未設定 deviceMode」就顯示 —— 用反應式偵測,不綁 cloudInit 成功與否,
     // 既有已登入裝置(功能上線前就登入的)下次載入也會觸發。guestMode 無 session → 不觸發。
@@ -840,7 +880,7 @@ class Component extends DCLogic {
     return JSON.stringify({ c: S.coins, x: S.xp, s: S.streak, g: S.graduationStage, t: S.taskOn, m: S.manualUnlock,
       ev: S.checkinEvents, ga: S.graduatedAt,   // #2:信任由 checkinEvents(含 checkpoint)推導,不再單獨 hash trustLevel
       cov: { v: S.covenant.version, t: S.covenant.terms, s: S.covenant.schedules, sig: S.covenant.signatures, h: S.covenant.history },
-      pr: S.covenant.proposals, pl: S.covenant.pledges, pdn: S.pledgeDone, pdel: S.pendingDeletes });   // #4
+      pr: S.covenant.proposals, pl: S.covenant.pledges, pdn: S.pledgeDone, pdel: S.pendingDeletes, csh: S.customShop });   // #4 + Phase 2 商城
   }
   async cloudInit() {
     if (!this._supa || this._cloudReady || this._cloudBusy) return;
@@ -926,7 +966,8 @@ class Component extends DCLogic {
       const covenant = { ...st.covenant, ...base, proposals, pledges };   // #4:提案/承諾以雲端為準
       return { coins: kid.coins || 0, xp: kid.xp || 0, streak: kid.streak || 0, graduationStage: gs,
         taskOn: (kid.task_on && Object.keys(kid.task_on).length) ? kid.task_on : st.taskOn,
-        manualUnlock: kid.manual_unlock || {}, checkinEvents: [...checkinEvents, ...seeded], graduatedAt, covenant, pledgeDone };
+        manualUnlock: kid.manual_unlock || {}, checkinEvents: [...checkinEvents, ...seeded], graduatedAt, covenant, pledgeDone,
+        customShop: Array.isArray(cov && cov.custom_shop) ? cov.custom_shop : (st.customShop || []) };   // Phase 2:商城目錄以雲端為準
     }, () => { this._hydrating = false; this._lastSyncHash = this.syncHash(); });
   }
   async pushKid() {
@@ -957,7 +998,8 @@ class Component extends DCLogic {
   async pushCovenant() {
     const c = this.state.covenant;
     const { error } = await this._supa.from('covenant').upsert({ family_id: this._familyId, version: c.version,
-      terms: c.terms || [], schedules: c.schedules || {}, signatures: c.signatures || {}, history: c.history || [] }, { onConflict: 'family_id' });
+      terms: c.terms || [], schedules: c.schedules || {}, signatures: c.signatures || {}, history: c.history || [],
+      custom_shop: this.state.customShop || [] }, { onConflict: 'family_id' });   // Phase 2:商城目錄 family 共享
     if (error) throw error;
   }
   // #4:提案(per-kid)、承諾(family)、承諾打卡(family)
@@ -1118,6 +1160,13 @@ class Component extends DCLogic {
       if (T > 0 || level > 0) scores[t.id] = { t: T, level };
     });
     if (Object.keys(scores).length) s.checkinEvents = [...s.checkinEvents, { type: 'trust_checkpoint', date: prevDay, ts: Date.now(), scores }];
+    // Phase 2 保價:排程到期(今天 ≥ effAt)→ 套用(漲價換新價 / 下架標記),清 pending
+    s.customShop = (s.customShop || []).map(x => {
+      if (x.pending && dayGap(x.pending.effAt, today) <= 0) {
+        const y = { ...x }; if (y.pending.type === 'price') y.cost = y.pending.newCost; if (y.pending.type === 'delist') y.delisted = true; delete y.pending; return y;
+      }
+      return x;
+    });
     s.lastDate = today; s.dayMode = defaultDayMode(today);
     return s;
   }
@@ -1291,13 +1340,18 @@ class Component extends DCLogic {
       { id:'s8', name:'家庭出遊選地點',   cost:800, cat:'exp',  icon:'i-target', g:'teal' },
       { id:'s6', name:'一次免家事券',     cost:450, cat:'perk', icon:'i-shield', g:'indigo' },
     ];
-    const shop = itemsAll.filter(it => S.listed[it.id] !== false).map(it => { const rd = !!S.redeemed[it.id], afford = S.coins >= it.cost;
-      const short = Math.max(0, it.cost - (S.coins || 0));
-      return { ...it, gradient: grads[it.g], costLabel: '' + it.cost, proposed: !!it.proposed,
-        btnText: rd ? '已兌換' : (afford ? '兌換' : '再存 ' + short + ' 幣'),
-        btnBg: rd ? '#eef0f6' : (afford ? GRAD : '#f2f3f7'), btnColor: rd ? '#8890a3' : (afford ? '#fff' : '#8890a3'),
-        showProg: !rd && !afford, progPct: Math.min(100, Math.round((S.coins || 0) / it.cost * 100)) + '%',
-        onRedeem: () => this.redeem({ id: it.id, name: it.name, cost: it.cost, icon: it.icon, gradient: grads[it.g] }) }; });
+    // 商城 = 示範商品 + 家長自建/孩子提案(未下架);custom 項沿用 listed 開關 + redeemed + 段位鎖
+    const allShopItems = [...itemsAll, ...(S.customShop || []).filter(it => !it.delisted)];
+    const shop = allShopItems.filter(it => S.listed[it.id] !== false).map(it => { const rd = !!S.redeemed[it.id], afford = S.coins >= it.cost, locked = !available(it);
+      const short = Math.max(0, it.cost - (S.coins || 0)), g = it.g || 'indigo';
+      const pend = it.pending, announce = pend ? ('⏳ ' + (pend.effAt || '').slice(5) + ' 起 ' + (pend.type === 'delist' ? '下架' : '調整為 ' + pend.newCost + ' 幣')) : '';
+      return { ...it, gradient: grads[g], costLabel: '' + it.cost, proposed: !!it.proposed, icon: it.icon || 'i-gift',
+        locked, lockLabel: locked ? ('🔒 ' + TIER_NAMES[it.unlockRank || 0] + '解鎖') : '',
+        hasAnnounce: !!announce, announce,
+        btnText: locked ? ('🔒 ' + TIER_NAMES[it.unlockRank || 0] + '解鎖') : (rd ? '已兌換' : (afford ? '兌換' : '再存 ' + short + ' 幣')),
+        btnBg: locked ? '#f2f3f7' : (rd ? '#eef0f6' : (afford ? GRAD : '#f2f3f7')), btnColor: locked ? '#9098ab' : (rd ? '#8890a3' : (afford ? '#fff' : '#8890a3')),
+        showProg: !locked && !rd && !afford, progPct: Math.min(100, Math.round((S.coins || 0) / it.cost * 100)) + '%',
+        onRedeem: () => { if (locked) return; this.redeem({ id: it.id, name: it.name, cost: it.cost, icon: it.icon || 'i-gift', gradient: grads[g] }); } }; });
     const recPat = ['d','d','d','h','d','d','d','d','d','h','d','d','m','d','d','d','d','d','h','d','d','d','d','d','d','h','now','future'];
     const recMap = { d:{ bg:ACC, color:'#fff', ico:'i-check' }, h:{ bg:'#f6efe0', color:'#cf9a2f', ico:'i-heart' }, m:{ bg:'#eef0f6', color:'#aab0c0', ico:'i-close' }, now:{ bg:'#fff', color:'#5b5bd6', ico:'', ring:true }, future:{ bg:'#e9ecf3', color:'#c2c8d6', ico:'' } };
     const recCells = recPat.map(k => { const m = recMap[k]; return { bg: m.bg, color: m.color, ico: m.ico || 'i-check', hasIco: !!m.ico, ringShadow: m.ring ? '0 0 0 2px #5b5bd6 inset' : 'none' }; });
@@ -1326,6 +1380,15 @@ class Component extends DCLogic {
     const pendingProps = (S.covenant.proposals || []).filter(p => p.status === 'pending').length;
     const inboxEmpty = pWait === 0 && pendingProps === 0 && rejectedItems.length === 0; // 四區全空 → 空狀態
     const kidDailyCoin = dailyCoinAvg(S.checkinEvents, today);   // A1-補:近14天日均 coin,換算提案開價相當幾天收入
+    // Phase 2 商城 CRUD:自建商品清單(家長端)
+    const pCustomShop = (S.customShop || []).map(it => ({ id: it.id, name: it.name, costLabel: it.cost + ' 幣', desc: it.desc || '', hasDesc: !!it.desc,
+      proposed: !!it.proposed, delisted: !!it.delisted,
+      rankLabel: (it.unlockRank != null ? TIER_NAMES[it.unlockRank] + '專屬' : ''), hasRank: it.unlockRank != null,
+      hasPending: !!it.pending, pendingLabel: it.pending ? ('排程 ' + (it.pending.effAt || '').slice(5) + ' 起 ' + (it.pending.type === 'delist' ? '下架' : '調整為 ' + it.pending.newCost + ' 幣') + ' · 可取消') : '',
+      onEdit: () => this.openShopForm(it), onDelist: () => this.scheduleDelist(it.id), onCancel: () => this.cancelSchedule(it.id), onDel: () => this.delCustomShop(it.id) }));
+    const sfCostNum = parseInt((S.sfCost || '').replace(/[^0-9]/g, ''), 10) || 0;
+    const sfDays = (sfCostNum > 0 && kidDailyCoin > 0) ? Math.round(sfCostNum / kidDailyCoin * 10) / 10 : null;
+    const sfBand = rewardPriceBand(sfDays), sfFlag = shopRuleFlag(S.sfName);
     const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
     const wr = weeklyReport(S.checkinEvents, today, S.taskOn); // B6:真實週報 + 一句話
     const probe = dataProbe(S.checkinEvents, today); // #3:反向指標數據自查
@@ -1544,6 +1607,16 @@ class Component extends DCLogic {
       covHistory: (S.covenant.history || []).slice().reverse().map(h => ({ v: 'v' + h.v, at: h.at, note: h.note })),
       covHasHistory: (S.covenant.history || []).length > 0,
       pItems, pWaitLabel: pWait > 0 ? (pWait + ' 筆待確認') : '今天都確認完了', week: wr.week, reportK1: wr.k1Label, reportHonest: wr.honestN + '', reportStreak: (S.streak || 0) + '', reportLine: wr.line, pRewards, pTasks,
+      // Phase 2 商城 CRUD
+      pCustomShop, hasCustomShop: pCustomShop.length > 0,
+      sfOpen: !!S.sfOpen, sfEditing: !!S.sfEdit, sfFormTitle: S.sfEdit ? '編輯商品' : '新增商品',
+      sfName: S.sfName, sfCost: S.sfCost, sfDesc: S.sfDesc,
+      onOpenShopForm: () => this.openShopForm(null), onCloseShopForm: () => this.closeShopForm(),
+      onSfName: (e) => this.setSf('Name', e), onSfCost: (e) => this.setSf('Cost', e), onSfDesc: (e) => this.setSf('Desc', e), onSaveShop: () => this.saveShopItem(),
+      sfRankVal: S.sfRank, sfRankOptions: [{ v: '', label: '不限段位' }].concat(TIER_NAMES.map((n, i) => ({ v: String(i), label: n + '專屬' }))),
+      onSfRank: (e) => this.setSf('Rank', e),
+      sfHasCost: sfCostNum > 0, sfIncome: sfDays != null ? ('≈ 他 ' + sfDays + ' 天收入(近14天日均)') : '近14天尚無足夠收入可換算',
+      sfBand: sfBand ? sfBand.band : '', sfHasBand: !!sfBand, sfFlag: sfFlag || '', sfHasFlag: !!sfFlag,
       pHasPending: pWait > 0, pAllDone: pWait === 0, pWait, onApproveAll: () => this.approveAll(),
       // #2:退回二次確認 + 撤回退回
       rejectedItems, hasRejected: rejectedItems.length > 0,
