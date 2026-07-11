@@ -3924,6 +3924,11 @@
               <div><div style="font-size:12px;color:rgba(255,255,255,.85)">目前金幣</div><div style="font:800 30px 'Baloo 2';color:#fff;line-height:1.1">{{ coins }}</div></div>
               <div style="margin-left:auto;font-size:11px;color:rgba(255,255,255,.85);text-align:right;line-height:1.5">誠實回報<br>也能累積</div>
             </div>
+            <div style="display:flex;gap:6px;background:#eef0f6;border-radius:13px;padding:4px;margin-bottom:16px">
+              <button onclick="{{ onShopTab }}" style="flex:1;border:0;border-radius:10px;padding:9px;background:{{ shopTabBg }};color:{{ shopTabColor }};font:800 13px 'Noto Sans TC';cursor:pointer;box-shadow:none">商城</button>
+              <button onclick="{{ onBagTab }}" style="flex:1;border:0;border-radius:10px;padding:9px;background:{{ bagTabBg }};color:{{ bagTabColor }};font:800 13px 'Noto Sans TC';cursor:pointer">背包 · {{ bagTotalLabel }}</button>
+            </div>
+            <sc-if value="{{ pgShopMain }}">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
               <sc-for list="{{ shop }}" as="it" hint-placeholder-count="4">
                 <div style="position:relative;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:14px;box-shadow:0 6px 16px -16px rgba(0,0,0,.4)">
@@ -3937,7 +3942,20 @@
                 </div>
               </sc-for>
             </div>
-            <button onclick="{{ onOpenRewardPropose }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:15px;margin-top:14px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.98)">💡 我想上架一個獎品</button></div></sc-if>
+            <button onclick="{{ onOpenRewardPropose }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:15px;margin-top:14px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.98)">💡 我想上架一個獎品</button>
+            </sc-if>
+            <sc-if value="{{ pgBag }}">
+              <sc-if value="{{ bagEmpty }}"><div style="text-align:center;color:#9098ab;font-size:13px;padding:40px 20px;line-height:1.7">背包還是空的<br>去商城把金幣換成想要的吧</div></sc-if>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ bag }}" as="b" hint-placeholder-count="0">
+                  <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:13px 14px">
+                    <div style="width:44px;height:44px;border-radius:13px;background:{{ b.gradient }};color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:24px;height:24px"><use href="#{{ b.icon }}"></use></svg></div>
+                    <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:#1a1f2e">{{ b.name }}</div><div style="font:700 12px 'Baloo 2';color:#8890a3;margin-top:2px">持有 {{ b.qtyLabel }}</div></div>
+                    <button onclick="{{ b.onUse }}" style="border:1.5px solid #d9dcff;background:#fff;border-radius:11px;padding:9px 15px;color:#5b5bd6;font:800 12.5px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.96)">使用</button>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if></div></sc-if>
         <sc-if value="{{ pgRecord }}"><div class="scroll" style="animation:{{ slideAnim }}"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 16px">我的紀錄</div>
             <div style="display:flex;gap:11px;margin-bottom:13px">
               <div style="flex:1;background:linear-gradient(160deg,#ffffff,#eef1fb);border:1px solid rgba(20,25,50,.07);border-radius:20px;padding:15px;text-align:center">

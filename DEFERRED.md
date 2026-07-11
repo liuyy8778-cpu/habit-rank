@@ -3,6 +3,14 @@
 集中記錄「已知但刻意延後」的項目,避免靠記憶。做的時候從這裡勾掉。
 
 ## 🔒 安全 / 技術債
+- **`checkin_events` 雲端同步是「刪光重灌」(資料遺失風險)**
+  - 現況:`pushEvents()` 每次存檔先 `.delete().eq('kid_id')` 砍光該小孩全部打卡事件,再 bulk insert 整個
+    前端陣列。append-only 只存在於前端 state,DB 層不是真 append-only——若 insert 中途失敗/斷網,該小孩
+    的打卡歷史會整段消失。
+  - 對照:商店的 `ledger_events`(2026-07 新增)已是**真 append-only**(只 insert、無 UPDATE/DELETE
+    policy、購買走 `purchase_item` RPC 原子交易)。checkin_events 應比照重構為**增量同步**
+    (只 insert 新事件 / upsert by 穩定 id,永不整段 delete)。
+  - 範圍界定:商店任務**刻意不動** checkin_events 同步機制;待獨立分支處理。
 - **PIN 明碼上雲 + 全載入記憶體**(孩子 PIN kids.pin、家長 PIN families.parent_pin)
   - 現況:明碼存 Supabase;登入後進記憶體(`this._kidPins`/`this._parentPin`),可被 DevTools 窺視。
   - 威脅等級:4 碼輕量關卡、RLS 擋跨家庭;同裝置手足仍可能翻出。
