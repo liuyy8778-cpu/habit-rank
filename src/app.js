@@ -95,6 +95,8 @@ const DEFAULT_ITEMS = [
 // 外觀槽位定義(schema 一次到位 3 槽;本波展示層只上 hat+home)
 const COSMETIC_SLOTS = ['hat', 'outfit', 'home'];
 const SLOT_LABEL = { hat: '帽子', outfit: '衣服', home: '家園' };
+// 免費預設家園:未購買任何 home 外觀時的完整底景(獲得框架,非鎖非空白)。脫下購買的 home 一律退回這個,永不家徒四壁。
+const DEFAULT_HOME = { art: '🏡', g: 'sky' };
 // 穿戴合法性「單一出口」:equipped 只是指標,真相是背包(inventoryOf)+ category。
 // 必須擁有(inventoryOf>0)且 category==='cosmetic' 且 slot 相符,才算真的穿著;否則視為未穿。
 // ledger_reset 後 inventoryOf 清空 → 這裡自動回傳 null = 自動脫下,無需額外 reset 邏輯。
@@ -1736,13 +1738,14 @@ class Component extends DCLogic {
     const bagEmpty = bag.length === 0;
     const bagTotal = bag.reduce((n, b) => n + b.qty, 0);
     // ②家園:靜態圖層疊加(家園背景 → 人物 avatar → 帽子)。穿戴一律讀 eqView(單一出口),不散落判斷。
-    const homeHat = eqView.hat, homeScene = eqView.home;
+    // 免費預設場景 DEFAULT_HOME:未購買任何 home 時的完整家園(獲得框架)——預設就是一個完整的家,
+    // 購買外觀是錦上添花;絕不空白、不灰鎖、不出現「快去解鎖」文案(不做「沒買=家徒四壁」損失框架)。
+    const homeHat = eqView.hat, homeScene = eqView.home || DEFAULT_HOME;
     const homeStage = {
-      bg: homeScene ? grads[homeScene.g || 'teal'] : 'linear-gradient(160deg,#eef1f7,#dfe4ee)',
-      hasScene: !!homeScene, sceneArt: homeScene ? homeScene.art : '',
+      bg: grads[homeScene.g] || grads.sky,
+      sceneArt: homeScene.art,   // 一律有場景(購買的 or 免費預設),模板不再有空白分支
       avatar: (curKid && curKid.avatar) || '🙂',
-      hasHat: !!homeHat, hatArt: homeHat ? homeHat.art : '',
-      isEmpty: (!homeScene && !homeHat) };
+      hasHat: !!homeHat, hatArt: homeHat ? homeHat.art : '' };
     // 衣櫥:本波只上 hat + home 槽(outfit 槽保留、示範品下一波)。各列「擁有的」外觀,點選穿/脫。
     const wardrobeSlots = ['hat', 'home'].map(slot => {
       const owned = activeItems.filter(it => it.category === 'cosmetic' && it.slot === slot && invMap[it.id] > 0);

@@ -3979,13 +3979,12 @@
             <sc-if value="{{ pgHome }}">
               <!-- ②家園:靜態圖層疊加(家園背景 → 人物 → 帽子) -->
               <div style="position:relative;height:230px;border-radius:22px;overflow:hidden;background:{{ homeStage.bg }};border:1px solid rgba(20,25,50,.07);margin-bottom:16px;box-shadow:0 14px 28px -18px rgba(20,25,50,.4)">
-                <sc-if value="{{ homeStage.hasScene }}"><div style="position:absolute;right:16px;bottom:14px;font-size:76px;line-height:1;opacity:.9;filter:drop-shadow(0 6px 10px rgba(0,0,0,.15))">{{ homeStage.sceneArt }}</div></sc-if>
+                <div style="position:absolute;right:16px;bottom:14px;font-size:76px;line-height:1;opacity:.9;filter:drop-shadow(0 6px 10px rgba(0,0,0,.15))">{{ homeStage.sceneArt }}</div>
                 <div style="position:absolute;left:0;right:0;bottom:0;height:34px;background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.35))"></div>
                 <div style="position:absolute;left:26px;bottom:20px;display:flex;flex-direction:column;align-items:center">
                   <sc-if value="{{ homeStage.hasHat }}"><div style="font-size:38px;line-height:1;margin-bottom:-14px;z-index:2;filter:drop-shadow(0 3px 4px rgba(0,0,0,.18))">{{ homeStage.hatArt }}</div></sc-if>
                   <div style="font-size:72px;line-height:1;filter:drop-shadow(0 6px 8px rgba(0,0,0,.18))">{{ homeStage.avatar }}</div>
                 </div>
-                <sc-if value="{{ homeStage.isEmpty }}"><div style="position:absolute;top:16px;left:18px;right:18px;font-size:12px;color:#6a7286;background:rgba(255,255,255,.65);border-radius:12px;padding:8px 11px;line-height:1.5">去商城買外觀，回到這裡幫自己和家園打扮 ✨</div></sc-if>
               </div>
               <sc-if value="{{ wardrobeEmpty }}"><div style="text-align:center;color:#9098ab;font-size:13px;padding:26px 20px;line-height:1.7">還沒有外觀道具<br>去商城的「外觀與家園」逛逛吧</div></sc-if>
               <sc-for list="{{ wardrobeSlots }}" as="w" hint-placeholder-count="0">
