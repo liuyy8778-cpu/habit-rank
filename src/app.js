@@ -97,6 +97,12 @@ const COSMETIC_SLOTS = ['hat', 'outfit', 'home'];
 const SLOT_LABEL = { hat: '帽子', outfit: '衣服', home: '家園' };
 // 免費預設家園:未購買任何 home 外觀時的完整底景(獲得框架,非鎖非空白)。脫下購買的 home 一律退回這個,永不家徒四壁。
 const DEFAULT_HOME = { art: '🏡', g: 'sky' };
+// 補種缺漏的內建品:雲端 items 表非空時(既有 family 已 seed 過特權品),算出 DEFAULT_ITEMS 裡「還沒上雲」的 builtin id。
+// 只回缺漏、insert-only、idempotent(重複登入 → 已存在 → 回空 → 不重插)。純函式,方便單測。
+function missingBuiltinIds(cloudRowIds) {
+  const have = new Set(cloudRowIds || []);
+  return DEFAULT_ITEMS.filter(d => d.builtin && !have.has(d.id)).map(d => d.id);
+}
 // 穿戴合法性「單一出口」:equipped 只是指標,真相是背包(inventoryOf)+ category。
 // 必須擁有(inventoryOf>0)且 category==='cosmetic' 且 slot 相符,才算真的穿著;否則視為未穿。
 // ledger_reset 後 inventoryOf 清空 → 這裡自動回傳 null = 自動脫下,無需額外 reset 邏輯。
@@ -398,7 +404,7 @@ function kidPinEval(mode, stage, entry, firstEntry, targetPin, parentPin, attemp
   return { r: 'wrong', attempts: na, msg: (na >= 5 ? '太多次了,請家長輸入 PIN' : '密碼不對,再試一次') };
 }
 // 除錯/測試用:純函式暴露到 window(唯讀,無副作用)
-if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe, kidPinEval, hAxisLock, hCommit, dailyCoinAvg, taskPriceBand, similarLibLabel, rewardPriceBand, shopRuleFlag, nfcResolve, deriveCoins, inventoryOf, cosmeticEquipped };
+if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe, kidPinEval, hAxisLock, hCommit, dailyCoinAvg, taskPriceBand, similarLibLabel, rewardPriceBand, shopRuleFlag, nfcResolve, deriveCoins, inventoryOf, cosmeticEquipped, missingBuiltinIds };
 
 // ===== B6:家長週報 =====
 // 規則式(不需 LLM)從 checkinEvents 近 7 天算出數據 + 一句「對話起點」。
@@ -1243,16 +1249,27 @@ class Component extends DCLogic {
     await this.pushLedgerMigrate();   // 訪客期間的購買帳本(insert-only 遷入,永不 delete)
     this._lastSyncHash = this.syncHash();
   }
-  // items 主檔(family 共享):空表就 seed 內建示範品 + 遷入本機自建商品;否則以雲端為準
+  // items 主檔(family 共享):空表就 seed 內建示範品 + 遷入本機自建商品;
+  // 非空表則以雲端為準,但「補種缺漏的內建品」(如②外觀 c_hat*/c_home*——既有 family 於①上線已 seed 過特權品,
+  // 表非空,新內建品若不補種就永遠不會上雲)。補種只 insert 缺的 builtin id,不動家長自建品、不覆蓋既有列;idempotent。
   async cloudLoadItems(familyId) {
     try {
       let { data, error } = await this._supa.from('items').select('*').eq('family_id', familyId).order('created_at');
       if (error) throw error;
-      if (!data || !data.length) {                                   // 首次:seed + 遷入本機 state.items
+      if (!data || !data.length) {                                   // 首次:seed 全部 + 遷入本機 state.items
         const seedRows = (this.state.items || []).map(it => this._itemRow(it, familyId));
         if (seedRows.length) { const { error: ie } = await this._supa.from('items').insert(seedRows); if (ie) throw ie; }
         const r2 = await this._supa.from('items').select('*').eq('family_id', familyId).order('created_at');
         data = r2.data || [];
+      } else {                                                       // 非空:補種缺漏的內建品(只補 DEFAULT_ITEMS 的 builtin id)
+        const missIds = new Set(missingBuiltinIds(data.map(r => r.id)));
+        const missing = DEFAULT_ITEMS.filter(d => missIds.has(d.id)).map(d => this._itemRow(d, familyId));
+        if (missing.length) {
+          // upsert + ignoreDuplicates:只插缺漏,既有列一律不覆蓋;兼防多裝置同時登入的競態(重複 id 直接略過)
+          const { error: me } = await this._supa.from('items').upsert(missing, { onConflict: 'id', ignoreDuplicates: true }); if (me) throw me;
+          const r3 = await this._supa.from('items').select('*').eq('family_id', familyId).order('created_at');
+          data = r3.data || data;
+        }
       }
       this.setState({ items: data.map(r => this._itemFromRow(r)) });
     } catch (e) { /* 讀不到就沿用本機 seed;不擋登入 */ }
