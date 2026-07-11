@@ -75,9 +75,48 @@ const CONFIG = {
 };
 const TRUST_NAMES = ['每次確認', '隨機抽查', '已畢業 · 自主'];
 
+// ===== 商城 items 主檔的內建示範品(seed)=====
+// 商城鐵律:螢幕時間/裝置額度永不上架;稀缺角標(HOT/新/限量)禁用;唯一允許角標=「你提案的」。
+// 這些是新家庭的預設商品,會被 seed 進 items 主檔(本機 + 雲端),之後家長可自行管理。
+const DEFAULT_ITEMS = [
+  { id: 's5', name: '決定一次全家晚餐', cost: 600, icon: 'i-heart',  g: 'magenta', builtin: true, active: true },
+  { id: 's2', name: '家庭電影選片權',   cost: 350, icon: 'i-gift',   g: 'indigo',  builtin: true, active: true },
+  { id: 's7', name: '跟爸爸單獨出門半天', cost: 800, icon: 'i-spark',  g: 'amber',   builtin: true, active: true },
+  { id: 's8', name: '家庭出遊選地點',   cost: 800, icon: 'i-target', g: 'teal',    builtin: true, active: true },
+  { id: 's6', name: '一次免家事券',     cost: 450, icon: 'i-shield', g: 'indigo',  builtin: true, active: true },
+];
+
+// ===== 金幣結餘 = 純事件推導(單一真相)=====
+// 收入 = checkin_events 已入帳(approved/auto)的 coin 總和;支出 = ledger_events 的 coin_spend 總和。
+// kids.coins 只是顯示快取,任何業務邏輯(含購買餘額檢查)一律用這個推導值,不讀快取。「金幣只花不扣」:系統從不主動扣款。
+// 「重新來過」= append 一筆 ledger_reset 盤點事件(帳本永不 delete);推導一律以「最後一筆 reset 之後」起算,歷史保留可稽核。
+function lastResetTs(ledger) {
+  let t = 0;
+  (ledger || []).forEach(l => { if (l && l.kind === 'ledger_reset' && (l.ts || 0) > t) t = l.ts; });
+  return t;
+}
+function deriveCoins(events, ledger) {
+  const rt = lastResetTs(ledger);
+  let c = 0;
+  (events || []).forEach(e => { if (e && e.behaviorId && (e.verdict === 'approved' || e.verdict === 'auto') && (e.ts || 0) > rt) c += (e.coin || 0); });
+  (ledger || []).forEach(l => { if (l && l.kind === 'coin_spend' && (l.ts || 0) > rt) c -= (l.amount || 0); });
+  return c;
+}
+// 背包 = ledger_events 推導結餘:入包(item_acquire)− 出包(item_consume),不建持有快照表。同樣以最後 reset 之後起算。
+function inventoryOf(ledger) {
+  const rt = lastResetTs(ledger);
+  const m = {};
+  (ledger || []).forEach(l => {
+    if (!l || !l.itemId || (l.ts || 0) <= rt) return;
+    if (l.kind === 'item_acquire') m[l.itemId] = (m[l.itemId] || 0) + (l.qty || 1);
+    else if (l.kind === 'item_consume') m[l.itemId] = (m[l.itemId] || 0) - (l.qty || 1);
+  });
+  return m;
+}
+
 // ===== 資料遷移:localStorage schema 版本控管 =====
 // 每次啟動檢查版本,舊資料無損升級並先備份到 backup_v1。
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 function migrateToV2(s) {
   if (!s || s.schemaVersion === SCHEMA_VERSION) return s;
   let v = s.schemaVersion || 1;
@@ -123,6 +162,19 @@ function migrateToV2(s) {
     if (m.pledgeDone) { const nd = {}; Object.keys(m.pledgeDone).forEach(k => { const i = k.indexOf('::'); if (i < 0) { nd[k] = m.pledgeDone[k]; return; } const pid = k.slice(0, i), rest = k.slice(i); nd[(remap[pid] || pid) + rest] = m.pledgeDone[k]; }); m.pledgeDone = nd; }
     if (!Array.isArray(m.pendingDeletes)) m.pendingDeletes = [];
     v = 7;
+  }
+  if (v < 8) {                                                   // 商城重構:custom_shop → items 主檔(收編內建示範品);金幣改事件推導;新增 ledger 帳本
+    const custom = Array.isArray(m.customShop)
+      ? m.customShop.map(x => ({ ...x, builtin: false, active: !x.delisted })) : [];
+    const seeded = DEFAULT_ITEMS.map(d => {
+      const it = { ...d };
+      if (m.listed && m.listed[d.id] === false) it.active = false;   // 舊 listed 開關 → active
+      return it;
+    });
+    m.items = [...seeded, ...custom];
+    if (!Array.isArray(m.ledgerEvents)) m.ledgerEvents = [];
+    delete m.customShop; delete m.listed; delete m.redeemed;         // 舊一次性兌換旗標廢除(改事件推導)
+    v = 8;
   }
   m.schemaVersion = SCHEMA_VERSION;
   return m;
@@ -313,7 +365,7 @@ function kidPinEval(mode, stage, entry, firstEntry, targetPin, parentPin, attemp
   return { r: 'wrong', attempts: na, msg: (na >= 5 ? '太多次了,請家長輸入 PIN' : '密碼不對,再試一次') };
 }
 // 除錯/測試用:純函式暴露到 window(唯讀,無副作用)
-if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe, kidPinEval, hAxisLock, hCommit, dailyCoinAvg, taskPriceBand, similarLibLabel, rewardPriceBand, shopRuleFlag, nfcResolve };
+if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe, kidPinEval, hAxisLock, hCommit, dailyCoinAvg, taskPriceBand, similarLibLabel, rewardPriceBand, shopRuleFlag, nfcResolve, deriveCoins, inventoryOf };
 
 // ===== B6:家長週報 =====
 // 規則式(不需 LLM)從 checkinEvents 近 7 天算出數據 + 一句「對話起點」。
@@ -414,11 +466,12 @@ class Component extends DCLogic {
     },
     newTerm: '', sealing: null, missAsk: null,
     propText: '', propReason: '', newPledge: '', pledgeDone: {}, proposeOpen: false, proposeKind: 'covenant', pendingDeletes: [],
-    listed: { s2: true, s5: true, s6: true, s7: true, s8: true },
-    customShop: [],   // Phase 2:家長自建/孩子提案核准的商城商品(family 共享,上雲 covenant.custom_shop)
+    items: DEFAULT_ITEMS.map(d => ({ ...d })),   // 商城 items 主檔(family 共享;雲端 items 表,本機 seed 內建示範品)
+    ledgerEvents: [],   // 金幣/道具帳本(append-only:coin_spend / item_acquire / item_consume)。餘額與背包皆由此推導
+    shopTab: 'shop',    // 商城頁子分頁:'shop'=商城 / 'bag'=背包(不持久化)
     // 商城表單(不持久化)
     sfOpen: false, sfEdit: null, sfName: '', sfCost: '', sfDesc: '', sfRank: '',
-    redeemed: {}, decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
+    decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
     pauses: 0, pausing: false,
     // 登入狀態(不持久化):authReady=已檢查 session,session=已登入,supaOff=後端不可用時退回本機
     authReady: false, session: null, authEmail: '', authSent: false, authError: '', supaOff: false, guestMode: false,
@@ -624,7 +677,7 @@ class Component extends DCLogic {
       const level = trustLiveLevel(st.checkinEvents, b.id, day);   // #2:等級由事件推導
       const instant = level >= 2 || (level === 1 && Math.random() >= CONFIG.spotCheckRate);
       const ev = { id: b.id + '-' + day, behaviorId: b.id, label: b.label, icon: b.icon, kind: b.kind, coin: b.coin, xp, honest: false, latencyMin: latencyOf(b.id, st.dayMode), ts: Date.now(), date: day, verdict: instant ? 'approved' : 'pending' };
-      return instant ? { checkinEvents: [...rest, ev], xp: st.xp - refund + xp, coins: st.coins + b.coin } : { checkinEvents: [...rest, ev], xp: st.xp - refund };
+      return instant ? { checkinEvents: [...rest, ev], xp: st.xp - refund + xp, coins: deriveCoins([...rest, ev], st.ledgerEvents) } : { checkinEvents: [...rest, ev], xp: st.xp - refund };
     });
   }
   // 「沒做到」= 誠實回報:立即入帳固定小額 XP(無需家長確認,因為承認失敗沒什麼好造假),連續不斷。
@@ -656,7 +709,7 @@ class Component extends DCLogic {
       const t = st.checkinEvents.find(e => e.id === id && e.verdict === 'pending');
       if (!t) return null;
       const events = st.checkinEvents.map(e => e === t ? { ...e, verdict: approve ? 'approved' : 'rejected' } : e);
-      if (approve) return { checkinEvents: events, coins: st.coins + t.coin, xp: st.xp + t.xp, rejectConfirm: null };
+      if (approve) return { checkinEvents: events, coins: deriveCoins(events, st.ledgerEvents), xp: st.xp + t.xp, rejectConfirm: null };
       return { checkinEvents: events, rejectConfirm: null };   // 退回:不入帳;−5 推導
     });
   }
@@ -671,30 +724,29 @@ class Component extends DCLogic {
       if (!r || r.verdict !== 'rejected') return null;              // 已更正過 → 不重複補
       const fix = { id: behaviorId + '-' + date + '-fix' + Date.now(), behaviorId, label: r.label, icon: r.icon, kind: r.kind,
         coin: r.coin, xp: r.xp, honest: false, missReason: null, correction: true, ts: Date.now(), date, verdict: 'approved' };
-      return { checkinEvents: [...st.checkinEvents, fix], coins: st.coins + (r.coin || 0), xp: st.xp + (r.xp || 0) };
+      return { checkinEvents: [...st.checkinEvents, fix], coins: deriveCoins([...st.checkinEvents, fix], st.ledgerEvents), xp: st.xp + (r.xp || 0) };
     });
   }
   // 家長一鍵全過
   approveAll() {
     this.setState(st => {
-      let coins = st.coins, xp = st.xp, any = false;
-      const events = st.checkinEvents.map(e => { if (e.verdict !== 'pending') return e; coins += e.coin; xp += e.xp; any = true; return { ...e, verdict: 'approved' }; });
-      return any ? { checkinEvents: events, coins, xp } : null;
+      let xp = st.xp, any = false;
+      const events = st.checkinEvents.map(e => { if (e.verdict !== 'pending') return e; xp += e.xp; any = true; return { ...e, verdict: 'approved' }; });
+      return any ? { checkinEvents: events, coins: deriveCoins(events, st.ledgerEvents), xp } : null;
     });
   }
   // 超過 autoApproveHours 未確認:自動放行(中性日),不懲罰小孩
   autoApprove(s) {
     const now = Date.now(), limit = CONFIG.autoApproveHours * 3600000;
-    let coins = s.coins, xp = s.xp, changed = false;
+    let xp = s.xp, changed = false;
     const events = (s.checkinEvents || []).map(e => {
-      if (e.verdict === 'pending' && (now - e.ts) > limit) { coins += e.coin; xp += e.xp; changed = true; return { ...e, verdict: 'auto' }; }
+      if (e.verdict === 'pending' && (now - e.ts) > limit) { xp += e.xp; changed = true; return { ...e, verdict: 'auto' }; }
       return e;
     });
-    return changed ? { ...s, checkinEvents: events, coins, xp } : s;
+    return changed ? { ...s, checkinEvents: events, coins: deriveCoins(events, s.ledgerEvents), xp } : s;
   }
   toggleTaskOn(id) { this.setState(st => ({ taskOn: { ...st.taskOn, [id]: !st.taskOn[id] } })); }
   unlockTask(id) { this.setState(st => ({ manualUnlock: { ...st.manualUnlock, [id]: true }, taskOn: { ...st.taskOn, [id]: true } })); } // 家長最大:提前解鎖並啟用
-  toggleList(id) { this.setState(st => ({ listed: { ...st.listed, [id]: st.listed[id] === false } })); } // 缺鍵視為上架,點一下就下架
   // ===== Phase 2:商城 CRUD(家長端)=====
   openShopForm(it) {
     if (it) this.setState({ sfOpen: true, sfEdit: it.id, sfName: it.name, sfCost: String(it.cost), sfDesc: it.desc || '', sfRank: (it.unlockRank != null ? String(it.unlockRank) : '') });
@@ -708,7 +760,7 @@ class Component extends DCLogic {
       if (!name || cost <= 0) return { sfOpen: false, sfEdit: null };
       const rank = st.sfRank !== '' ? (parseInt(st.sfRank, 10) || 0) : null;
       const desc = (st.sfDesc || '').trim();
-      let list = [...(st.customShop || [])];
+      let list = [...(st.items || [])];
       if (st.sfEdit) {                                            // 編輯:name/desc/rank 即時;漲價走 7 天保價、降價即時
         list = list.map(x => {
           if (x.id !== st.sfEdit) return x;
@@ -718,14 +770,18 @@ class Component extends DCLogic {
           return up;
         });
       } else {                                                   // 新增即時上架
-        list.push({ id: newId(), name, cost, desc, unlockRank: rank, icon: 'i-gift', g: 'magenta', proposed: false, createdAt: st.lastDate });
+        list.push({ id: newId(), name, cost, desc, unlockRank: rank, icon: 'i-gift', g: 'magenta', proposed: false, builtin: false, active: true, createdAt: st.lastDate });
       }
-      return { customShop: list, sfOpen: false, sfEdit: null, sfName: '', sfCost: '', sfDesc: '', sfRank: '' };
+      return { items: list, sfOpen: false, sfEdit: null, sfName: '', sfCost: '', sfDesc: '', sfRank: '' };
     });
   }
-  scheduleDelist(id) { this.setState(st => ({ customShop: (st.customShop || []).map(x => x.id === id ? { ...x, pending: { type: 'delist', effAt: dateMinus(st.lastDate, -7) } } : x) })); }
-  cancelSchedule(id) { this.setState(st => ({ customShop: (st.customShop || []).map(x => { if (x.id !== id) return x; const y = { ...x }; delete y.pending; return y; }) })); } // 冷靜期可逆
-  delCustomShop(id) { this.setState(st => ({ customShop: (st.customShop || []).filter(x => x.id !== id) })); } // 尚未公告的新增可直接刪
+  scheduleDelist(id) { this.setState(st => ({ items: (st.items || []).map(x => x.id === id ? { ...x, pending: { type: 'delist', effAt: dateMinus(st.lastDate, -7) } } : x) })); }
+  cancelSchedule(id) { this.setState(st => ({ items: (st.items || []).map(x => { if (x.id !== id) return x; const y = { ...x }; delete y.pending; return y; }) })); } // 冷靜期可逆
+  toggleItemActive(id) { this.setState(st => ({ items: (st.items || []).map(x => x.id === id ? { ...x, active: x.active === false } : x) })); } // 內建示範品上/下架
+  delCustomShop(id) {
+    if (this._supa && this._cloudReady) { try { this._supa.from('items').delete().eq('id', id).then(() => {}, () => {}); } catch (e) {} }
+    this.setState(st => ({ items: (st.items || []).filter(x => x.id !== id) }));   // 尚未公告的新增可直接刪
+  }
   jrSel(i) { this.setState({ jrSel: i }); }
   toggleSchedInfo() { this.setState(st => ({ schedInfoOpen: !st.schedInfoOpen })); }
   useProtect() { if (this.state.preview) return; this.setState(st => st.protects > 0 && !st.saved ? { protects: st.protects - 1, streak: st.streak + 1, saved: true } : null); }
@@ -790,7 +846,7 @@ class Component extends DCLogic {
         const out = { covenant: { ...st.covenant, proposals, history: [...(st.covenant.history || []), { v: st.covenant.version, at: ymd(new Date()), note }] } };
         if (p.kind === 'reward') {                                 // 核准獎品提案 → 建入商城,掛「你提案的」角標(可事後編輯定價)
           const cost = parseInt((p.reason || '').replace(/[^0-9]/g, ''), 10) || 0;
-          out.customShop = [...(st.customShop || []), { id: newId(), name: p.text, cost: cost > 0 ? cost : 100, desc: '', unlockRank: null, icon: 'i-gift', g: 'magenta', proposed: true, createdAt: st.lastDate }];
+          out.items = [...(st.items || []), { id: newId(), name: p.text, cost: cost > 0 ? cost : 100, desc: '', unlockRank: null, icon: 'i-gift', g: 'magenta', proposed: true, builtin: false, active: true, createdAt: st.lastDate }];
         }
         return out;
       }
@@ -829,7 +885,7 @@ class Component extends DCLogic {
       const kindCn = p.kind === 'reward' ? '獎品' : '任務';
       const note = '採納' + kindCn + '提案:' + (edited ? (p.text + ' → ' + name) : name) + (bounty ? '(' + bounty + '幣)' : '');
       const out = { approveForm: null, covenant: { ...st.covenant, proposals, history: [...(st.covenant.history || []), { v: st.covenant.version, at: ymd(new Date()), note }] } };
-      if (p.kind === 'reward') out.customShop = [...(st.customShop || []), { id: newId(), name, cost: bounty > 0 ? bounty : 100, desc, unlockRank: null, icon: 'i-gift', g: 'magenta', proposed: true, createdAt: st.lastDate }];
+      if (p.kind === 'reward') out.items = [...(st.items || []), { id: newId(), name, cost: bounty > 0 ? bounty : 100, desc, unlockRank: null, icon: 'i-gift', g: 'magenta', proposed: true, builtin: false, active: true, createdAt: st.lastDate }];
       return out;
     });
   }
@@ -899,7 +955,57 @@ class Component extends DCLogic {
   }
   // 家長誠實回報今天有沒有做到自己的承諾(小孩看得到)
   togglePledge(id) { this.setState(st => { const k = id + '::' + (st.lastDate || ymd(new Date())); return { pledgeDone: { ...st.pledgeDone, [k]: !st.pledgeDone[k] } }; }); }
-  redeem(it) { if (this.state.preview) return; this.setState(st => { if (st.redeemed[it.id] || st.coins < it.cost) return null; return { coins: st.coins - it.cost, redeemed: { ...st.redeemed, [it.id]: true }, fx: { name: it.name, icon: it.icon, gradient: it.gradient, spent: it.cost, left: st.coins - it.cost } }; }); }
+  // ===== 商城購買 → append-only 帳本 =====
+  // 餘額檢查一律用事件推導值(不讀快取)。雲端:走 Postgres RPC purchase_item(單一 transaction 內
+  // 校驗餘額 → 插 coin_spend + item_acquire 兩列,帳平鎖在後端)。本機/訪客:單執行緒同步 append(同一 setState 帳平)。
+  setShopTab(t) { this.setState({ shopTab: t }); }
+  buy(it) {
+    if (this.state.preview) return;
+    const bal = deriveCoins(this.state.checkinEvents, this.state.ledgerEvents);
+    if (bal < it.cost) return;   // 餘額不足(以推導值判斷)
+    if (this._supa && this._cloudReady && this._kidId) {          // 雲端:原子 RPC
+      this.setState({ syncStatus: 'syncing' });
+      this._supa.rpc('purchase_item', { p_kid: this._kidId, p_item: it.id }).then(({ data, error }) => {
+        if (error) { this.setState({ syncStatus: 'error:' + (error.message || error) }); return; }
+        this._reloadLedger();   // ledger 為 append-only:只重拉、絕不 delete 重灌
+        this.setState({ syncStatus: 'ok', fx: { name: it.name, icon: it.icon, gradient: it.gradient, spent: it.cost, left: (data && data.balance != null) ? data.balance : (bal - it.cost) } });
+      }, (e) => this.setState({ syncStatus: 'error:' + e }));
+      return;
+    }
+    this.setState(st => {                                          // 本機/訪客:同步 append
+      const b2 = deriveCoins(st.checkinEvents, st.ledgerEvents);
+      if (b2 < it.cost) return null;
+      const ts = Date.now(), day = st.lastDate || ymd(new Date());
+      const spend = { id: newId(), kind: 'coin_spend', itemId: it.id, amount: it.cost, qty: null, ts, date: day };
+      const acq = { id: newId(), kind: 'item_acquire', itemId: it.id, amount: null, qty: 1, ts, date: day };
+      const ledger = [...st.ledgerEvents, spend, acq];
+      return { ledgerEvents: ledger, coins: deriveCoins(st.checkinEvents, ledger),
+        fx: { name: it.name, icon: it.icon, gradient: it.gradient, spent: it.cost, left: deriveCoins(st.checkinEvents, ledger) } };
+    });
+  }
+  // 出包:使用一件背包道具 → append item_consume(不動金幣;金幣只花不扣)
+  useItem(itemId) {
+    if (this.state.preview) return;
+    if (this._supa && this._cloudReady && this._kidId) {
+      const ev = { family_id: this._familyId, kid_id: this._kidId, kind: 'item_consume', item_id: itemId, amount: null, qty: 1, date: this.state.lastDate || ymd(new Date()), ts: new Date().toISOString() };
+      this._supa.from('ledger_events').insert(ev).then(({ error }) => { if (!error) this._reloadLedger(); }, () => {});
+      return;
+    }
+    this.setState(st => {
+      const inv = inventoryOf(st.ledgerEvents);
+      if (!(inv[itemId] > 0)) return null;
+      const ev = { id: newId(), kind: 'item_consume', itemId, amount: null, qty: 1, ts: Date.now(), date: st.lastDate || ymd(new Date()) };
+      return { ledgerEvents: [...st.ledgerEvents, ev] };
+    });
+  }
+  async _reloadLedger() {
+    if (!this._supa || !this._kidId) return;
+    try {
+      const { data } = await this._supa.from('ledger_events').select('*').eq('kid_id', this._kidId);
+      const led = (data || []).map(r => ({ id: r.id, kind: r.kind, itemId: r.item_id, amount: r.amount, qty: r.qty, ts: r.ts ? Date.parse(r.ts) : Date.now(), date: r.date }));
+      this.setState(st => ({ ledgerEvents: led, coins: deriveCoins(st.checkinEvents, led) }));   // 快取回寫由 RPC/pushKid 負責
+    } catch (e) {}
+  }
   closeFx() { this.setState({ fx: null }); }
   // ===== 持久化 + 日期感知 =====
   componentDidMount() {
@@ -913,7 +1019,11 @@ class Component extends DCLogic {
     if (merged.deviceMode === 'kid') merged.mode = 'kid';
     // NFC 打卡:網址帶 token → 進打卡模式;src=qr 走同一條路
     try { const q = new URLSearchParams(location.search); const tk = q.get('token'); if (tk) { merged.nfcToken = tk; merged.nfcSrc = (q.get('src') === 'qr') ? 'qr' : 'nfc'; } } catch (e) {}
-    this.setState(this.autoApprove(this.rollover(merged, ymd(new Date()))));
+    const boot = this.autoApprove(this.rollover(merged, ymd(new Date())));
+    boot.coins = deriveCoins(boot.checkinEvents, boot.ledgerEvents);   // 金幣結餘=事件推導(單一真相)
+    if (!Array.isArray(boot.items) || !boot.items.length) boot.items = DEFAULT_ITEMS.map(d => ({ ...d }));
+    if (!Array.isArray(boot.ledgerEvents)) boot.ledgerEvents = [];
+    this.setState(boot);
     this.initSupabase();
     // #3:session 停留埋點 —— app 被切到背景/關閉時記一筆停留秒數(append-only 事件)
     this._sessionStart = Date.now();
@@ -971,7 +1081,7 @@ class Component extends DCLogic {
       pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm, termRemove, approveForm,
       kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage,
       deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, updateReady, schedInfoOpen, preview,
-      sfOpen, sfEdit, sfName, sfCost, sfDesc, sfRank, nfcToken, nfcSrc, tokenRegen, rulesOpen, ...persist } = this.state;
+      sfOpen, sfEdit, sfName, sfCost, sfDesc, sfRank, nfcToken, nfcSrc, tokenRegen, rulesOpen, shopTab, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
     // 裝置精靈:只要「已登入 + 尚未設定 deviceMode」就顯示 —— 用反應式偵測,不綁 cloudInit 成功與否,
     // 既有已登入裝置(功能上線前就登入的)下次載入也會觸發。guestMode 無 session → 不觸發。
@@ -1027,7 +1137,7 @@ class Component extends DCLogic {
     return JSON.stringify({ c: S.coins, x: S.xp, s: S.streak, g: S.graduationStage, t: S.taskOn, m: S.manualUnlock,
       ev: S.checkinEvents, ga: S.graduatedAt,   // #2:信任由 checkinEvents(含 checkpoint)推導,不再單獨 hash trustLevel
       cov: { v: S.covenant.version, t: S.covenant.terms, s: S.covenant.schedules, sig: S.covenant.signatures, h: S.covenant.history },
-      pr: S.covenant.proposals, pl: S.covenant.pledges, pdn: S.pledgeDone, pdel: S.pendingDeletes, csh: S.customShop, nft: S.covenant.nfcTokens });   // #4 + Phase 2 商城 + NFC
+      pr: S.covenant.proposals, pl: S.covenant.pledges, pdn: S.pledgeDone, pdel: S.pendingDeletes, itm: S.items, nft: S.covenant.nfcTokens });   // #4 + items 主檔 + NFC(ledger 走 RPC/append,不進 hash)
   }
   async cloudInit() {
     if (!this._supa || this._cloudReady || this._cloudBusy) return;
@@ -1048,6 +1158,7 @@ class Component extends DCLogic {
       if (cloudPin) { this._parentPin = cloudPin; try { localStorage.setItem('habitRank_pin', cloudPin); } catch (e) {} }
       else if (localPin) { this._parentPin = localPin; try { await this._supa.from('families').update({ parent_pin: localPin }).eq('id', familyId); } catch (e) {} }
       else { this._parentPin = null; }
+      await this.cloudLoadItems(familyId);   // items 主檔:family 共享;空表 → seed 內建示範品 + 遷入本機自建商品
       let { data: rows, error: ke } = await this._supa.from('kids').select('*').eq('family_id', familyId).order('created_at');
       if (ke) throw ke;
       rows = rows || [];
@@ -1076,7 +1187,32 @@ class Component extends DCLogic {
     this._kidId = kid.id;
     await this.pushEvents(); await this.pushTrust(); await this.pushCovenant();
     await this.pushPledges(); await this.pushProposals(); await this.pushPledgeLog();   // #4
+    await this.pushLedgerMigrate();   // 訪客期間的購買帳本(insert-only 遷入,永不 delete)
     this._lastSyncHash = this.syncHash();
+  }
+  // items 主檔(family 共享):空表就 seed 內建示範品 + 遷入本機自建商品;否則以雲端為準
+  async cloudLoadItems(familyId) {
+    try {
+      let { data, error } = await this._supa.from('items').select('*').eq('family_id', familyId).order('created_at');
+      if (error) throw error;
+      if (!data || !data.length) {                                   // 首次:seed + 遷入本機 state.items
+        const seedRows = (this.state.items || []).map(it => this._itemRow(it, familyId));
+        if (seedRows.length) { const { error: ie } = await this._supa.from('items').insert(seedRows); if (ie) throw ie; }
+        const r2 = await this._supa.from('items').select('*').eq('family_id', familyId).order('created_at');
+        data = r2.data || [];
+      }
+      this.setState({ items: data.map(r => this._itemFromRow(r)) });
+    } catch (e) { /* 讀不到就沿用本機 seed;不擋登入 */ }
+  }
+  _itemRow(it, familyId) {   // state → DB 列
+    return { id: it.id, family_id: familyId, name: it.name, cost: it.cost || 0, icon: it.icon || 'i-gift',
+      grad: it.g || 'magenta', unlock_rank: (it.unlockRank != null ? it.unlockRank : null), builtin: !!it.builtin,
+      proposed: !!it.proposed, active: it.active !== false, pending: it.pending || null };
+  }
+  _itemFromRow(r) {   // DB 列 → state(可見性一律由 active 決定,不另存 delisted)
+    return { id: r.id, name: r.name, cost: r.cost || 0, icon: r.icon || 'i-gift', g: r.grad || 'magenta',
+      unlockRank: (r.unlock_rank != null ? r.unlock_rank : null), builtin: !!r.builtin, proposed: !!r.proposed,
+      active: r.active !== false, pending: r.pending || undefined, createdAt: r.created_at };
   }
   async cloudLoad(kid) {
     this._kidId = kid.id;
@@ -1087,9 +1223,12 @@ class Component extends DCLogic {
       this._supa.from('proposals').select('*').eq('kid_id', kid.id),        // #4:提案 per-kid
       this._supa.from('pledges').select('*').eq('family_id', this._familyId),   // #4:承諾 family 共用
       this._supa.from('pledge_log').select('*').eq('family_id', this._familyId),
+      this._supa.from('ledger_events').select('*').eq('kid_id', kid.id),    // 金幣/道具帳本 per-kid
     ]);
     const evs = res[0].data || [], tl = res[1].data || [], cov = res[2].data || null;
     const cProps = res[3].data || [], cPledges = res[4].data || [], cPlog = res[5].data || [];
+    const cLedger = res[6].data || [];
+    const ledgerEvents = cLedger.map(r => ({ id: r.id, kind: r.kind, itemId: r.item_id, amount: r.amount, qty: r.qty, ts: r.ts ? Date.parse(r.ts) : Date.now(), date: r.date }));
     const proposals = cProps.map(r => ({ id: r.id, text: r.text, reason: r.reason || '', at: r.at ? String(r.at).slice(0, 10) : '', status: r.status || 'pending' }));
     const pledges = cPledges.map(r => ({ id: r.id, text: r.text }));
     const pledgeDone = {}; cPlog.forEach(r => { if (r.done) pledgeDone[r.pledge_id + '::' + String(r.date).slice(0, 10)] = true; });
@@ -1112,18 +1251,32 @@ class Component extends DCLogic {
         history: Array.isArray(cov.history) ? cov.history : (st.covenant.history || []),
         nfcTokens: Array.isArray(cov.nfc_tokens) ? cov.nfc_tokens : (st.covenant.nfcTokens || []) } : {};
       const covenant = { ...st.covenant, ...base, proposals, pledges };   // #4:提案/承諾以雲端為準
-      return { coins: kid.coins || 0, xp: kid.xp || 0, streak: kid.streak || 0, graduationStage: gs,
+      const allEvents = [...checkinEvents, ...seeded];
+      return { coins: deriveCoins(allEvents, ledgerEvents), xp: kid.xp || 0, streak: kid.streak || 0, graduationStage: gs,   // 金幣以事件推導為準,不讀 kid.coins 快取
         taskOn: (kid.task_on && Object.keys(kid.task_on).length) ? kid.task_on : st.taskOn,
-        manualUnlock: kid.manual_unlock || {}, checkinEvents: [...checkinEvents, ...seeded], graduatedAt, covenant, pledgeDone,
-        customShop: Array.isArray(cov && cov.custom_shop) ? cov.custom_shop : (st.customShop || []) };   // Phase 2:商城目錄以雲端為準
+        manualUnlock: kid.manual_unlock || {}, checkinEvents: allEvents, ledgerEvents, graduatedAt, covenant, pledgeDone };
     }, () => { this._hydrating = false; this._lastSyncHash = this.syncHash(); });
   }
   async pushKid() {
     const S = this.state;
-    const { error } = await this._supa.from('kids').update({ coins: S.coins || 0, xp: S.xp || 0, streak: S.streak || 0,
+    const { error } = await this._supa.from('kids').update({ coins: deriveCoins(S.checkinEvents, S.ledgerEvents), xp: S.xp || 0, streak: S.streak || 0,   // coins 只是顯示快取,寫入推導值
       graduation_stage: S.graduationStage || 0, task_on: S.taskOn || {}, manual_unlock: S.manualUnlock || {},
       schedules: (S.covenant && S.covenant.schedules) || {} }).eq('id', this._kidId);
     if (error) throw error;
+  }
+  // items 主檔(family 共享,可變目錄):upsert 全量;刪除由 delCustomShop 直接打 DB
+  async pushItems() {
+    const rows = (this.state.items || []).map(it => this._itemRow(it, this._familyId));
+    if (!rows.length) return;
+    const { error } = await this._supa.from('items').upsert(rows, { onConflict: 'id' }); if (error) throw error;
+  }
+  // ledger_events 遷移:訪客期間本機累積的帳本一次性 insert 上雲(append-only,永不 delete)
+  async pushLedgerMigrate() {
+    const kid = this._kidId, fam = this._familyId;
+    const rows = (this.state.ledgerEvents || []).map(l => ({ family_id: fam, kid_id: kid, kind: l.kind, item_id: l.itemId || null,
+      amount: (l.amount != null ? l.amount : null), qty: (l.qty != null ? l.qty : null),
+      date: l.date, ts: l.ts ? new Date(l.ts).toISOString() : new Date().toISOString() }));
+    if (rows.length) { const { error } = await this._supa.from('ledger_events').insert(rows); if (error) throw error; }
   }
   async pushEvents() {
     const kid = this._kidId, fam = this._familyId;
@@ -1147,7 +1300,7 @@ class Component extends DCLogic {
     const c = this.state.covenant;
     const { error } = await this._supa.from('covenant').upsert({ family_id: this._familyId, version: c.version,
       terms: c.terms || [], schedules: c.schedules || {}, signatures: c.signatures || {}, history: c.history || [],
-      custom_shop: this.state.customShop || [], nfc_tokens: c.nfcTokens || [] }, { onConflict: 'family_id' });   // Phase 2 商城 + NFC token,family 共享
+      nfc_tokens: c.nfcTokens || [] }, { onConflict: 'family_id' });   // NFC token,family 共享(商城已移出至 items 主檔)
     if (error) throw error;
   }
   // #4:提案(per-kid)、承諾(family)、承諾打卡(family)
@@ -1182,6 +1335,7 @@ class Component extends DCLogic {
       this.setState({ syncStatus: 'syncing' });
       await this.pushKid(); await this.pushTrust(); await this.pushCovenant(); await this.pushEvents();
       await this.pushPledges(); await this.pushProposals(); await this.pushPledgeLog();   // #4(承諾先於承諾打卡:FK)
+      await this.pushItems();   // items 主檔(family 共享);ledger 走 RPC/append,不在此推
       await this.retryPendingDeletes();
       this._lastSyncHash = h;
       this.setState({ syncStatus: 'ok' });
@@ -1309,9 +1463,9 @@ class Component extends DCLogic {
     });
     if (Object.keys(scores).length) s.checkinEvents = [...s.checkinEvents, { type: 'trust_checkpoint', date: prevDay, ts: Date.now(), scores }];
     // Phase 2 保價:排程到期(今天 ≥ effAt)→ 套用(漲價換新價 / 下架標記),清 pending
-    s.customShop = (s.customShop || []).map(x => {
+    s.items = (s.items || []).map(x => {
       if (x.pending && dayGap(x.pending.effAt, today) <= 0) {
-        const y = { ...x }; if (y.pending.type === 'price') y.cost = y.pending.newCost; if (y.pending.type === 'delist') y.delisted = true; delete y.pending; return y;
+        const y = { ...x }; if (y.pending.type === 'price') y.cost = y.pending.newCost; if (y.pending.type === 'delist') { y.delisted = true; y.active = false; } delete y.pending; return y;
       }
       return x;
     });
@@ -1359,6 +1513,8 @@ class Component extends DCLogic {
     const kid = this._kidId, fam = this._familyId;
     this._cloudReady = false;  // 停止背景鏡像,避免清完又被推回
     try { await this._supa.from('checkin_events').delete().eq('kid_id', kid); } catch (e) {}
+    // 帳本永不 delete:「重新來過」= append 一筆 ledger_reset 盤點事件(推導從它之後起算,舊帳保留可稽核)
+    try { await this._supa.from('ledger_events').insert({ family_id: fam, kid_id: kid, kind: 'ledger_reset', item_id: null, amount: null, qty: null, date: ymd(new Date()), ts: new Date().toISOString() }); } catch (e) {}
     try { await this._supa.from('trust_levels').delete().eq('kid_id', kid); } catch (e) {}
     try { await this._supa.from('kids').update({ coins: 0, xp: 0, streak: 0, graduation_stage: 0, task_on: { k1: true, k2: true, sc3: true, ld1: true, bd1: true, em1: true }, manual_unlock: {} }).eq('id', kid); } catch (e) {}
     try { await this._supa.from('covenant').delete().eq('family_id', fam); } catch (e) {}
@@ -1489,25 +1645,29 @@ class Component extends DCLogic {
       selBadge: selState === 'done' ? '已達成' : (selState === 'now' ? '進行中' : '未解鎖'), selBadgeBg: selState === 'lock' ? '#eef0f6' : '#eef0ff', selBadgeColor: selState === 'lock' ? '#8890a3' : '#4a4ac2' };
     // 商城鐵律:螢幕時間/裝置額度永不作為商品(Premack:被標價的東西會升值,與教養目標相反);
     // 社交需求不標價。示範資料一律為特權/體驗類。稀缺型角標(HOT/新)已移除,唯一角標=「你提案的」。
-    const itemsAll = [
-      { id:'s5', name:'決定一次全家晚餐', cost:600, cat:'exp',  icon:'i-heart',  g:'magenta' },
-      { id:'s2', name:'家庭電影選片權',   cost:350, cat:'perk', icon:'i-gift',   g:'indigo' },
-      { id:'s7', name:'跟爸爸單獨出門半天', cost:800, cat:'exp',  icon:'i-spark',  g:'amber' },
-      { id:'s8', name:'家庭出遊選地點',   cost:800, cat:'exp',  icon:'i-target', g:'teal' },
-      { id:'s6', name:'一次免家事券',     cost:450, cat:'perk', icon:'i-shield', g:'indigo' },
-    ];
-    // 商城 = 示範商品 + 家長自建/孩子提案(未下架);custom 項沿用 listed 開關 + redeemed + 段位鎖
-    const allShopItems = [...itemsAll, ...(S.customShop || []).filter(it => !it.delisted)];
-    const shop = allShopItems.filter(it => S.listed[it.id] !== false).map(it => { const rd = !!S.redeemed[it.id], afford = S.coins >= it.cost, locked = !available(it);
-      const short = Math.max(0, it.cost - (S.coins || 0)), g = it.g || 'indigo';
+    // 商城 = items 主檔(內建示範 + 家長自建/孩子提案)未下架且上架中;段位鎖沿用 available()。金幣結餘 = 事件推導。
+    const coinBal = deriveCoins(S.checkinEvents, S.ledgerEvents);
+    const shopTab = S.shopTab === 'bag' ? 'bag' : 'shop';
+    const activeItems = (S.items || []).filter(it => it.active !== false && !it.delisted);
+    const shop = activeItems.map(it => { const afford = coinBal >= it.cost, locked = !available(it);
+      const short = Math.max(0, it.cost - (coinBal || 0)), g = it.g || 'indigo';
       const pend = it.pending, announce = pend ? ('⏳ ' + (pend.effAt || '').slice(5) + ' 起 ' + (pend.type === 'delist' ? '下架' : '調整為 ' + pend.newCost + ' 幣')) : '';
       return { ...it, gradient: grads[g], costLabel: '' + it.cost, proposed: !!it.proposed, icon: it.icon || 'i-gift',
         locked, lockLabel: locked ? ('🔒 ' + TIER_NAMES[it.unlockRank || 0] + '解鎖') : '',
         hasAnnounce: !!announce, announce,
-        btnText: locked ? ('🔒 ' + TIER_NAMES[it.unlockRank || 0] + '解鎖') : (rd ? '已兌換' : (afford ? '兌換' : '再存 ' + short + ' 幣')),
-        btnBg: locked ? '#f2f3f7' : (rd ? '#eef0f6' : (afford ? GRAD : '#f2f3f7')), btnColor: locked ? '#9098ab' : (rd ? '#8890a3' : (afford ? '#fff' : '#8890a3')),
-        showProg: !locked && !rd && !afford, progPct: Math.min(100, Math.round((S.coins || 0) / it.cost * 100)) + '%',
-        onRedeem: () => { if (locked) return; this.redeem({ id: it.id, name: it.name, cost: it.cost, icon: it.icon || 'i-gift', gradient: grads[g] }); } }; });
+        btnText: locked ? ('🔒 ' + TIER_NAMES[it.unlockRank || 0] + '解鎖') : (afford ? '購買' : '再存 ' + short + ' 幣'),
+        btnBg: locked ? '#f2f3f7' : (afford ? GRAD : '#f2f3f7'), btnColor: locked ? '#9098ab' : (afford ? '#fff' : '#8890a3'),
+        showProg: !locked && !afford, progPct: Math.min(100, Math.round((coinBal || 0) / it.cost * 100)) + '%',
+        onRedeem: () => { if (locked) return; this.buy({ id: it.id, name: it.name, cost: it.cost, icon: it.icon || 'i-gift', gradient: grads[g] }); } }; });
+    // 背包 = ledger_events 推導結餘(入包 item_acquire − 出包 item_consume),不建持有快照表
+    const invMap = inventoryOf(S.ledgerEvents);
+    const bag = Object.keys(invMap).filter(id => invMap[id] > 0).map(id => {
+      const it = (S.items || []).find(x => x.id === id) || { name: id, icon: 'i-gift', g: 'indigo' };
+      return { id, name: it.name, qty: invMap[id], qtyLabel: '×' + invMap[id], icon: it.icon || 'i-gift', gradient: grads[it.g || 'indigo'],
+        onUse: () => this.useItem(id) };
+    });
+    const bagEmpty = bag.length === 0;
+    const bagTotal = bag.reduce((n, b) => n + b.qty, 0);
     const recPat = ['d','d','d','h','d','d','d','d','d','h','d','d','m','d','d','d','d','d','h','d','d','d','d','d','d','h','now','future'];
     const recMap = { d:{ bg:ACC, color:'#fff', ico:'i-check' }, h:{ bg:'#f6efe0', color:'#cf9a2f', ico:'i-heart' }, m:{ bg:'#eef0f6', color:'#aab0c0', ico:'i-close' }, now:{ bg:'#fff', color:'#5b5bd6', ico:'', ring:true }, future:{ bg:'#e9ecf3', color:'#c2c8d6', ico:'' } };
     const recCells = recPat.map(k => { const m = recMap[k]; return { bg: m.bg, color: m.color, ico: m.ico || 'i-check', hasIco: !!m.ico, ringShadow: m.ring ? '0 0 0 2px #5b5bd6 inset' : 'none' }; });
@@ -1537,8 +1697,11 @@ class Component extends DCLogic {
     const pendingProps = (S.covenant.proposals || []).filter(p => p.status === 'pending').length;
     const inboxEmpty = pWait === 0 && pendingProps === 0 && rejectedItems.length === 0; // 四區全空 → 空狀態
     const kidDailyCoin = dailyCoinAvg(S.checkinEvents, today);   // A1-補:近14天日均 coin,換算提案開價相當幾天收入
-    // Phase 2 商城 CRUD:自建商品清單(家長端)
-    const pCustomShop = (S.customShop || []).map(it => ({ id: it.id, name: it.name, costLabel: it.cost + ' 幣', desc: it.desc || '', hasDesc: !!it.desc,
+    // 商城 CRUD(家長端):items 主檔拆兩區——內建示範品(可上/下架)與 自建/孩子提案(完整 CRUD)
+    const builtinItems = (S.items || []).filter(it => it.builtin);
+    const customItems = (S.items || []).filter(it => !it.builtin);
+    const pRewards = builtinItems.map(it => { const on = it.active !== false && !it.delisted; return { id: it.id, name: it.name, cost: it.cost + '', iconHref: it.icon || 'i-gift', gradient: grads[it.g || 'indigo'], onToggle: () => this.toggleItemActive(it.id), tgLabel: on ? '上架中' : '已下架', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
+    const pCustomShop = customItems.map(it => ({ id: it.id, name: it.name, costLabel: it.cost + ' 幣', desc: it.desc || '', hasDesc: !!it.desc,
       proposed: !!it.proposed, delisted: !!it.delisted,
       rankLabel: (it.unlockRank != null ? TIER_NAMES[it.unlockRank] + '專屬' : ''), hasRank: it.unlockRank != null,
       hasPending: !!it.pending, pendingLabel: it.pending ? ('排程 ' + (it.pending.effAt || '').slice(5) + ' 起 ' + (it.pending.type === 'delist' ? '下架' : '調整為 ' + it.pending.newCost + ' 幣') + ' · 可取消') : '',
@@ -1555,7 +1718,6 @@ class Component extends DCLogic {
     const nudgeCount = pendingEvents.filter(e => (nowMs - e.ts) > 24 * 3600000).length;
     const wr = weeklyReport(S.checkinEvents, today, S.taskOn); // B6:真實週報 + 一句話
     const probe = dataProbe(S.checkinEvents, today); // #3:反向指標數據自查
-    const pRewards = itemsAll.map(it => { const on = S.listed[it.id] !== false; return { id: it.id, name: it.name, cost: it.cost + '', iconHref: it.icon, gradient: grads[it.g], onToggle: () => this.toggleList(it.id), tgLabel: on ? '上架中' : '已下架', tgBg: on ? '#eef0ff' : '#f2f3f7', tgColor: on ? '#4a4ac2' : '#9098ab', tgDot: on ? '#5b5bd6' : '#c2c8d6' }; });
     // 家長任務管理:任務庫全部列出。鎖定的顯示解鎖段位,家長可提前解鎖(家長最大)
     const pTasks = LIB.map(t => { const on = !!S.taskOn[t.id], locked = !available(t);
       const rt = '+' + t.xp + 'XP · ' + t.coin + '幣';
@@ -1645,6 +1807,11 @@ class Component extends DCLogic {
       pullRefreshing: this.state.pullRefreshing,
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
       habits, dailyTasks, jr, shop, rec, appVersion: APP_VERSION,
+      bag, bagEmpty, bagTotalLabel: bagTotal + ' 件',   // 背包(事件推導)
+      pgShopMain: shopTab === 'shop', pgBag: shopTab === 'bag',
+      onShopTab: () => this.setShopTab('shop'), onBagTab: () => this.setShopTab('bag'),
+      shopTabBg: shopTab === 'shop' ? '#fff' : 'transparent', shopTabColor: shopTab === 'shop' ? '#1a1f2e' : '#8890a3',
+      bagTabBg: shopTab === 'bag' ? '#fff' : 'transparent', bagTabColor: shopTab === 'bag' ? '#1a1f2e' : '#8890a3',
       updateReady: !!this.state.updateReady, onApplyUpdate: () => this.applyUpdate(),
       schedInfoOpen: !!S.schedInfoOpen, onToggleSchedInfo: () => this.toggleSchedInfo(), schedInfoCaret: S.schedInfoOpen ? '▴' : '▾',
       hasDailyTasks: dailyTasks.length > 0, noDailyTasks: dailyTasks.length === 0, pickedLabel: pickedCount + ' 個',

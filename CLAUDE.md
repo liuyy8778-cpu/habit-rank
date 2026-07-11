@@ -16,6 +16,7 @@
 - **前端框架**:Claude Design 匯出的 x-dc 模板(`{{ binding }}`、`<sc-if>`、`<sc-for>`)+ React 18(runtime 於瀏覽器載入)。app 邏輯是一個 `class Component extends DCLogic`,`renderVals()` 回傳一份扁平物件綁定到模板。
 - **事件表限制**:框架的 EVENT_MAP 有 onclick/onchange/oninput/onmousedown/onmouseup/onmouseenter/onmouseleave,**沒有 mousemove/touchmove**。
 - **資料模型**:`checkinEvents` 是 append-only 事件流(單一真相來源);`todayEventOf` 取某行為當天最新事件。信任系統 per-behavior(trustLevel 0/1/2),升級需連續誠實 + 達成率地板。
+- **商店 + 背包**(2026-07):商城目錄 = `items` 主檔(family 共享,收編舊 custom_shop);購買/使用 = `ledgerEvents` 真 append-only 帳本(kind:coin_spend/item_acquire/item_consume)。**金幣結餘 = 純事件推導** `deriveCoins()`(收入 checkin coin − 支出 coin_spend),`kids.coins` 只是顯示快取,業務判斷一律讀推導值。背包 = `inventoryOf()`(入包−出包)。雲端購買走 `purchase_item` RPC 原子交易(帳平鎖後端);SQL 見 `supabase/2026-07-11_shop_inventory.sql`。
 - **持久化**:localStorage(`habitRank`)為主要來源與快取;登入後鏡像到 Supabase(見下)。`componentDidUpdate` 會 strip 掉 transient 欄位再存。
 - **schema 遷移**:`migrateToV2()` + `SCHEMA_VERSION`,版本化無損升級,升級前備份 `habitRank_backup_v1`。
 
@@ -24,7 +25,8 @@
 - 家庭雲端空間:email magic link 登入(帳號=家長);小孩是 profile、不登入。
 - 分階段完成:①登入閘門 ②核心進度上雲(kids/checkin_events/trust_levels/covenant)③多小孩(切換/新增/改名)。
 - 家長 PIN 關卡:進「家長」頁強制輸入 4 位數 PIN(存 device key `habitRank_pin`,登出清除)。
-- 待辦(2b):proposals / pledges / rewards 的 per-kid 雲端同步。
+- 待辦(2b):proposals / pledges 的 per-kid 雲端同步。(商城 rewards 已由 items 主檔取代並上雲。)
+- 商店表:`items`(family 共享,可變目錄)、`ledger_events`(append-only,只 SELECT+INSERT、無 UPDATE/DELETE policy)。「重新來過」永不 delete 帳本,而是 append 一筆 `kind:ledger_reset` 盤點事件;`deriveCoins`/`inventoryOf`/`purchase_item` 一律以最後一筆 reset 之後起算(舊帳保留可稽核)。孤兒表 `rewards` 待確認無資料後 drop(SQL 已附註)。
 - 連線設定在 `src/app.js` 頂部(`SUPA_URL` / `SUPA_KEY`,publishable key 靠 RLS 保護、可公開)。
 
 ## 驗證方式
