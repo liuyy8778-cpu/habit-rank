@@ -26,7 +26,7 @@
 - 分階段完成:①登入閘門 ②核心進度上雲(kids/checkin_events/trust_levels/covenant)③多小孩(切換/新增/改名)。
 - 家長 PIN 關卡:進「家長」頁強制輸入 4 位數 PIN(存 device key `habitRank_pin`,登出清除)。
 - 待辦(2b):proposals / pledges 的 per-kid 雲端同步。(商城 rewards 已由 items 主檔取代並上雲。)
-- 商店表:`items`(family 共享,可變目錄)、`ledger_events`(append-only,只 SELECT+INSERT、無 UPDATE/DELETE policy)。孤兒表 `rewards` 待確認無資料後 drop(SQL 已附註)。
+- 商店表:`items`(family 共享,可變目錄)、`ledger_events`(append-only,只 SELECT+INSERT、無 UPDATE/DELETE policy)。「重新來過」永不 delete 帳本,而是 append 一筆 `kind:ledger_reset` 盤點事件;`deriveCoins`/`inventoryOf`/`purchase_item` 一律以最後一筆 reset 之後起算(舊帳保留可稽核)。孤兒表 `rewards` 待確認無資料後 drop(SQL 已附註)。
 - 連線設定在 `src/app.js` 頂部(`SUPA_URL` / `SUPA_KEY`,publishable key 靠 RLS 保護、可公開)。
 
 ## 驗證方式

@@ -40,7 +40,7 @@ create table if not exists public.ledger_events (
   id        uuid primary key default gen_random_uuid(),
   family_id uuid not null references public.families(id) on delete cascade,
   kid_id    uuid not null references public.kids(id)     on delete cascade,
-  kind      text not null check (kind in ('coin_spend','item_acquire','item_consume')),
+  kind      text not null check (kind in ('coin_spend','item_acquire','item_consume','ledger_reset')),
   item_id   text references public.items(id) on delete set null,
   amount    integer,   -- coin_spend 用：花費金幣
   qty       integer,   -- item_acquire / item_consume 用：件數
@@ -68,7 +68,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_family uuid; v_cost integer; v_active boolean; v_bal integer;
+  v_family uuid; v_cost integer; v_active boolean; v_bal integer; v_reset timestamptz;
   v_ts timestamptz := now(); v_date date := (now() at time zone 'utc')::date;
 begin
   select i.family_id, i.cost, i.active into v_family, v_cost, v_active
@@ -82,11 +82,15 @@ begin
     where k.id = p_kid and k.family_id = v_family and f.owner_id = auth.uid()
   ) then raise exception 'not_authorized'; end if;
 
-  -- 餘額 = 事件推導
+  -- 「重新來過」盤點線：推導一律以最後一筆 ledger_reset 之後起算（帳本永不 delete）
+  select coalesce(max(ts), 'epoch'::timestamptz) into v_reset
+    from public.ledger_events where kid_id = p_kid and kind = 'ledger_reset';
+
+  -- 餘額 = 事件推導（只算盤點線之後）
   select coalesce((select sum(coin)   from public.checkin_events
-                   where kid_id = p_kid and verdict in ('approved','auto')), 0)
+                   where kid_id = p_kid and verdict in ('approved','auto') and ts > v_reset), 0)
        - coalesce((select sum(amount) from public.ledger_events
-                   where kid_id = p_kid and kind = 'coin_spend'), 0)
+                   where kid_id = p_kid and kind = 'coin_spend' and ts > v_reset), 0)
     into v_bal;
   if v_bal < v_cost then raise exception 'insufficient_coins'; end if;
 
@@ -101,23 +105,11 @@ end $$;
 revoke all on function public.purchase_item(uuid, text) from public;
 grant execute on function public.purchase_item(uuid, text) to authenticated;
 
--- ========== 4) reset_kid_ledger()：「重新來過」授權清帳 ==========
--- 帳本無 DELETE policy，故清帳只能走這條授權路徑（僅限自家 kid）。
-create or replace function public.reset_kid_ledger(p_kid uuid)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if not exists (
-    select 1 from public.kids k join public.families f on f.id = k.family_id
-    where k.id = p_kid and f.owner_id = auth.uid()
-  ) then raise exception 'not_authorized'; end if;
-  delete from public.ledger_events where kid_id = p_kid;
-end $$;
-revoke all on function public.reset_kid_ledger(uuid) from public;
-grant execute on function public.reset_kid_ledger(uuid) to authenticated;
+-- ========== 4) 「重新來過」= 帳本盤點事件（永不 delete）==========
+-- 帳本無 DELETE policy。歸零不是撕掉前面的頁，而是 append 一筆 kind='ledger_reset' 盤點事件
+-- （如工廠盤點歸零也要留盤點單）。前端 _resetCloud() 直接走 INSERT policy 寫入這筆;
+-- deriveCoins / inventoryOf 與本檔 purchase_item() 皆以「最後一筆 ledger_reset 之後」的事件推導。
+-- 舊帳整段保留、永遠可稽核。故不需要任何 DELETE / RPC。
 
 -- ========== 5) 孤兒表 rewards：確認無資料後移除 ==========
 -- Phase 2 商城改用 covenant.custom_shop，rewards 從未接線；本次收編到 items 後已無用。

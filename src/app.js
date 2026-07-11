@@ -89,17 +89,25 @@ const DEFAULT_ITEMS = [
 // ===== 金幣結餘 = 純事件推導(單一真相)=====
 // 收入 = checkin_events 已入帳(approved/auto)的 coin 總和;支出 = ledger_events 的 coin_spend 總和。
 // kids.coins 只是顯示快取,任何業務邏輯(含購買餘額檢查)一律用這個推導值,不讀快取。「金幣只花不扣」:系統從不主動扣款。
+// 「重新來過」= append 一筆 ledger_reset 盤點事件(帳本永不 delete);推導一律以「最後一筆 reset 之後」起算,歷史保留可稽核。
+function lastResetTs(ledger) {
+  let t = 0;
+  (ledger || []).forEach(l => { if (l && l.kind === 'ledger_reset' && (l.ts || 0) > t) t = l.ts; });
+  return t;
+}
 function deriveCoins(events, ledger) {
+  const rt = lastResetTs(ledger);
   let c = 0;
-  (events || []).forEach(e => { if (e && e.behaviorId && (e.verdict === 'approved' || e.verdict === 'auto')) c += (e.coin || 0); });
-  (ledger || []).forEach(l => { if (l && l.kind === 'coin_spend') c -= (l.amount || 0); });
+  (events || []).forEach(e => { if (e && e.behaviorId && (e.verdict === 'approved' || e.verdict === 'auto') && (e.ts || 0) > rt) c += (e.coin || 0); });
+  (ledger || []).forEach(l => { if (l && l.kind === 'coin_spend' && (l.ts || 0) > rt) c -= (l.amount || 0); });
   return c;
 }
-// 背包 = ledger_events 推導結餘:入包(item_acquire)− 出包(item_consume),不建持有快照表。
+// 背包 = ledger_events 推導結餘:入包(item_acquire)− 出包(item_consume),不建持有快照表。同樣以最後 reset 之後起算。
 function inventoryOf(ledger) {
+  const rt = lastResetTs(ledger);
   const m = {};
   (ledger || []).forEach(l => {
-    if (!l || !l.itemId) return;
+    if (!l || !l.itemId || (l.ts || 0) <= rt) return;
     if (l.kind === 'item_acquire') m[l.itemId] = (m[l.itemId] || 0) + (l.qty || 1);
     else if (l.kind === 'item_consume') m[l.itemId] = (m[l.itemId] || 0) - (l.qty || 1);
   });
@@ -1505,7 +1513,8 @@ class Component extends DCLogic {
     const kid = this._kidId, fam = this._familyId;
     this._cloudReady = false;  // 停止背景鏡像,避免清完又被推回
     try { await this._supa.from('checkin_events').delete().eq('kid_id', kid); } catch (e) {}
-    try { await this._supa.rpc('reset_kid_ledger', { p_kid: kid }); } catch (e) {}   // 帳本無 DELETE policy;「重新來過」走授權 RPC 清帳(唯一合法刪除路徑)
+    // 帳本永不 delete:「重新來過」= append 一筆 ledger_reset 盤點事件(推導從它之後起算,舊帳保留可稽核)
+    try { await this._supa.from('ledger_events').insert({ family_id: fam, kid_id: kid, kind: 'ledger_reset', item_id: null, amount: null, qty: null, date: ymd(new Date()), ts: new Date().toISOString() }); } catch (e) {}
     try { await this._supa.from('trust_levels').delete().eq('kid_id', kid); } catch (e) {}
     try { await this._supa.from('kids').update({ coins: 0, xp: 0, streak: 0, graduation_stage: 0, task_on: { k1: true, k2: true, sc3: true, ld1: true, bd1: true, em1: true }, manual_unlock: {} }).eq('id', kid); } catch (e) {}
     try { await this._supa.from('covenant').delete().eq('family_id', fam); } catch (e) {}
