@@ -78,13 +78,37 @@ const TRUST_NAMES = ['每次確認', '隨機抽查', '已畢業 · 自主'];
 // ===== 商城 items 主檔的內建示範品(seed)=====
 // 商城鐵律:螢幕時間/裝置額度永不上架;稀缺角標(HOT/新/限量)禁用;唯一允許角標=「你提案的」。
 // 這些是新家庭的預設商品,會被 seed 進 items 主檔(本機 + 雲端),之後家長可自行管理。
+// category:'privilege' = 特權/體驗類(現有商品全部);'cosmetic' = 外觀類(人物/家園),slot 分槽、art 為呈現用 emoji。
+// 外觀鐵律:全數低於特權最低價(350);目錄總價值不超過特權類;走同一本帳本、同一支 purchase_item()。
 const DEFAULT_ITEMS = [
-  { id: 's5', name: '決定一次全家晚餐', cost: 600, icon: 'i-heart',  g: 'magenta', builtin: true, active: true },
-  { id: 's2', name: '家庭電影選片權',   cost: 350, icon: 'i-gift',   g: 'indigo',  builtin: true, active: true },
-  { id: 's7', name: '跟爸爸單獨出門半天', cost: 800, icon: 'i-spark',  g: 'amber',   builtin: true, active: true },
-  { id: 's8', name: '家庭出遊選地點',   cost: 800, icon: 'i-target', g: 'teal',    builtin: true, active: true },
-  { id: 's6', name: '一次免家事券',     cost: 450, icon: 'i-shield', g: 'indigo',  builtin: true, active: true },
+  { id: 's5', name: '決定一次全家晚餐', cost: 600, icon: 'i-heart',  g: 'magenta', builtin: true, active: true, category: 'privilege' },
+  { id: 's2', name: '家庭電影選片權',   cost: 350, icon: 'i-gift',   g: 'indigo',  builtin: true, active: true, category: 'privilege' },
+  { id: 's7', name: '跟爸爸單獨出門半天', cost: 800, icon: 'i-spark',  g: 'amber',   builtin: true, active: true, category: 'privilege' },
+  { id: 's8', name: '家庭出遊選地點',   cost: 800, icon: 'i-target', g: 'teal',    builtin: true, active: true, category: 'privilege' },
+  { id: 's6', name: '一次免家事券',     cost: 450, icon: 'i-shield', g: 'indigo',  builtin: true, active: true, category: 'privilege' },
+  // 外觀示範品(本波:hat + home 各 2 件;outfit 槽保留、示範品併下一波「寧缺勿醜」)
+  { id: 'c_hat1',  name: '皇冠',     cost: 120, icon: 'i-crown', g: 'amber',   builtin: true, active: true, category: 'cosmetic', slot: 'hat',  art: '👑' },
+  { id: 'c_hat2',  name: '學士帽',   cost: 200, icon: 'i-medal', g: 'indigo',  builtin: true, active: true, category: 'cosmetic', slot: 'hat',  art: '🎓' },
+  { id: 'c_home1', name: '溫馨小屋', cost: 220, icon: 'i-heart', g: 'amber',   builtin: true, active: true, category: 'cosmetic', slot: 'home', art: '🏠' },
+  { id: 'c_home2', name: '森林露營', cost: 180, icon: 'i-spark', g: 'teal',    builtin: true, active: true, category: 'cosmetic', slot: 'home', art: '🏕️' },
 ];
+// 外觀槽位定義(schema 一次到位 3 槽;本波展示層只上 hat+home)
+const COSMETIC_SLOTS = ['hat', 'outfit', 'home'];
+const SLOT_LABEL = { hat: '帽子', outfit: '衣服', home: '家園' };
+// 穿戴合法性「單一出口」:equipped 只是指標,真相是背包(inventoryOf)+ category。
+// 必須擁有(inventoryOf>0)且 category==='cosmetic' 且 slot 相符,才算真的穿著;否則視為未穿。
+// ledger_reset 後 inventoryOf 清空 → 這裡自動回傳 null = 自動脫下,無需額外 reset 邏輯。
+function cosmeticEquipped(equipped, items, ledger) {
+  const inv = inventoryOf(ledger);
+  const out = { hat: null, outfit: null, home: null };
+  COSMETIC_SLOTS.forEach(slot => {
+    const id = equipped && equipped[slot];
+    if (!id) return;
+    const it = (items || []).find(x => x.id === id);
+    if (it && it.category === 'cosmetic' && it.slot === slot && inv[id] > 0) out[slot] = it;
+  });
+  return out;
+}
 
 // ===== 金幣結餘 = 純事件推導(單一真相)=====
 // 收入 = checkin_events 已入帳(approved/auto)的 coin 總和;支出 = ledger_events 的 coin_spend 總和。
@@ -116,7 +140,7 @@ function inventoryOf(ledger) {
 
 // ===== 資料遷移:localStorage schema 版本控管 =====
 // 每次啟動檢查版本,舊資料無損升級並先備份到 backup_v1。
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 function migrateToV2(s) {
   if (!s || s.schemaVersion === SCHEMA_VERSION) return s;
   let v = s.schemaVersion || 1;
@@ -175,6 +199,13 @@ function migrateToV2(s) {
     if (!Array.isArray(m.ledgerEvents)) m.ledgerEvents = [];
     delete m.customShop; delete m.listed; delete m.redeemed;         // 舊一次性兌換旗標廢除(改事件推導)
     v = 8;
+  }
+  if (v < 9) {                                                       // ②外觀系統:items 加 category、新增內建外觀示範品;kids 加 equipped 穿戴快取
+    m.items = Array.isArray(m.items) ? m.items.map(it => ({ ...it, category: it.category || 'privilege' })) : [];
+    const have = new Set(m.items.map(it => it.id));
+    DEFAULT_ITEMS.filter(d => d.category === 'cosmetic' && !have.has(d.id)).forEach(d => m.items.push({ ...d })); // 補入內建外觀(舊用戶也看得到)
+    if (!m.equipped || typeof m.equipped !== 'object') m.equipped = {}; // 穿戴指標 { hat, outfit, home }
+    v = 9;
   }
   m.schemaVersion = SCHEMA_VERSION;
   return m;
@@ -365,7 +396,7 @@ function kidPinEval(mode, stage, entry, firstEntry, targetPin, parentPin, attemp
   return { r: 'wrong', attempts: na, msg: (na >= 5 ? '太多次了,請家長輸入 PIN' : '密碼不對,再試一次') };
 }
 // 除錯/測試用:純函式暴露到 window(唯讀,無副作用)
-if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe, kidPinEval, hAxisLock, hCommit, dailyCoinAvg, taskPriceBand, similarLibLabel, rewardPriceBand, shopRuleFlag, nfcResolve, deriveCoins, inventoryOf };
+if (typeof window !== 'undefined') window.__trust = { trustScoreOf, trustLiveLevel, achieveRate30, nextCkptLevel, eventDelta, tCap, dataProbe, kidPinEval, hAxisLock, hCommit, dailyCoinAvg, taskPriceBand, similarLibLabel, rewardPriceBand, shopRuleFlag, nfcResolve, deriveCoins, inventoryOf, cosmeticEquipped };
 
 // ===== B6:家長週報 =====
 // 規則式(不需 LLM)從 checkinEvents 近 7 天算出數據 + 一句「對話起點」。
@@ -468,7 +499,8 @@ class Component extends DCLogic {
     propText: '', propReason: '', newPledge: '', pledgeDone: {}, proposeOpen: false, proposeKind: 'covenant', pendingDeletes: [],
     items: DEFAULT_ITEMS.map(d => ({ ...d })),   // 商城 items 主檔(family 共享;雲端 items 表,本機 seed 內建示範品)
     ledgerEvents: [],   // 金幣/道具帳本(append-only:coin_spend / item_acquire / item_consume)。餘額與背包皆由此推導
-    shopTab: 'shop',    // 商城頁子分頁:'shop'=商城 / 'bag'=背包(不持久化)
+    equipped: {},       // ②外觀:當前穿戴指標 { hat, outfit, home }(per-kid 顯示快取,非帳本;真相走 inventoryOf)
+    shopTab: 'shop',    // 商城頁子分頁:'shop'=商城 / 'bag'=背包 / 'home'=家園(不持久化)
     // 商城表單(不持久化)
     sfOpen: false, sfEdit: null, sfName: '', sfCost: '', sfDesc: '', sfRank: '',
     decided: {}, jrSel: 1, saved: false, celebrate: false, fx: null,
@@ -961,6 +993,9 @@ class Component extends DCLogic {
   setShopTab(t) { this.setState({ shopTab: t }); }
   buy(it) {
     if (this.state.preview) return;
+    const full = (this.state.items || []).find(x => x.id === it.id) || it;
+    // Q4:外觀道具不重複購買(前端擋;RPC 不動)。已擁有 → 直接返回
+    if (full.category === 'cosmetic' && inventoryOf(this.state.ledgerEvents)[it.id] > 0) return;
     const bal = deriveCoins(this.state.checkinEvents, this.state.ledgerEvents);
     if (bal < it.cost) return;   // 餘額不足(以推導值判斷)
     if (this._supa && this._cloudReady && this._kidId) {          // 雲端:原子 RPC
@@ -996,6 +1031,20 @@ class Component extends DCLogic {
       if (!(inv[itemId] > 0)) return null;
       const ev = { id: newId(), kind: 'item_consume', itemId, amount: null, qty: 1, ts: Date.now(), date: st.lastDate || ymd(new Date()) };
       return { ledgerEvents: [...st.ledgerEvents, ev] };
+    });
+  }
+  // ②外觀:穿/脫(toggle)。純顯示快取 kids.equipped,不寫帳本(外觀不消耗)。
+  // 合法性:只能穿「擁有(inventoryOf>0)且 category==='cosmetic'」的道具;點已戴的=脫下。
+  // 雲端由 componentDidUpdate 去抖 cloudSave → pushKid 更新 kids.equipped(無 RPC)。
+  equip(itemId) {
+    if (this.state.preview) return;
+    const it = (this.state.items || []).find(x => x.id === itemId);
+    if (!it || it.category !== 'cosmetic' || !it.slot) return;
+    if (!(inventoryOf(this.state.ledgerEvents)[itemId] > 0)) return;   // 只能穿擁有的
+    this.setState(st => {
+      const eq = { ...(st.equipped || {}) };
+      eq[it.slot] = (eq[it.slot] === itemId) ? null : itemId;         // toggle:已戴→脫下
+      return { equipped: eq };
     });
   }
   async _reloadLedger() {
@@ -1135,6 +1184,7 @@ class Component extends DCLogic {
   syncHash() {
     const S = this.state;
     return JSON.stringify({ c: S.coins, x: S.xp, s: S.streak, g: S.graduationStage, t: S.taskOn, m: S.manualUnlock,
+      eq: S.equipped,   // ②外觀:穿戴變更觸發 cloudSave → pushKid
       ev: S.checkinEvents, ga: S.graduatedAt,   // #2:信任由 checkinEvents(含 checkpoint)推導,不再單獨 hash trustLevel
       cov: { v: S.covenant.version, t: S.covenant.terms, s: S.covenant.schedules, sig: S.covenant.signatures, h: S.covenant.history },
       pr: S.covenant.proposals, pl: S.covenant.pledges, pdn: S.pledgeDone, pdel: S.pendingDeletes, itm: S.items, nft: S.covenant.nfcTokens });   // #4 + items 主檔 + NFC(ledger 走 RPC/append,不進 hash)
@@ -1181,6 +1231,7 @@ class Component extends DCLogic {
     const { data: kid, error } = await this._supa.from('kids').insert({
       family_id: familyId, name, coins: S.coins || 0, xp: S.xp || 0, streak: S.streak || 0,
       graduation_stage: S.graduationStage || 0, task_on: S.taskOn || {}, manual_unlock: S.manualUnlock || {},
+      equipped: S.equipped || {},   // ②外觀:穿戴快取
       schedules: (S.covenant && S.covenant.schedules) || {},
     }).select('*').single();
     if (error) throw error;
@@ -1207,12 +1258,14 @@ class Component extends DCLogic {
   _itemRow(it, familyId) {   // state → DB 列
     return { id: it.id, family_id: familyId, name: it.name, cost: it.cost || 0, icon: it.icon || 'i-gift',
       grad: it.g || 'magenta', unlock_rank: (it.unlockRank != null ? it.unlockRank : null), builtin: !!it.builtin,
-      proposed: !!it.proposed, active: it.active !== false, pending: it.pending || null };
+      proposed: !!it.proposed, active: it.active !== false, pending: it.pending || null,
+      category: it.category || 'privilege', slot: it.slot || null, art: it.art || null };   // ②外觀分類
   }
   _itemFromRow(r) {   // DB 列 → state(可見性一律由 active 決定,不另存 delisted)
     return { id: r.id, name: r.name, cost: r.cost || 0, icon: r.icon || 'i-gift', g: r.grad || 'magenta',
       unlockRank: (r.unlock_rank != null ? r.unlock_rank : null), builtin: !!r.builtin, proposed: !!r.proposed,
-      active: r.active !== false, pending: r.pending || undefined, createdAt: r.created_at };
+      active: r.active !== false, pending: r.pending || undefined, createdAt: r.created_at,
+      category: r.category || 'privilege', slot: r.slot || undefined, art: r.art || undefined };   // ②外觀分類
   }
   async cloudLoad(kid) {
     this._kidId = kid.id;
@@ -1254,6 +1307,7 @@ class Component extends DCLogic {
       const allEvents = [...checkinEvents, ...seeded];
       return { coins: deriveCoins(allEvents, ledgerEvents), xp: kid.xp || 0, streak: kid.streak || 0, graduationStage: gs,   // 金幣以事件推導為準,不讀 kid.coins 快取
         taskOn: (kid.task_on && Object.keys(kid.task_on).length) ? kid.task_on : st.taskOn,
+        equipped: (kid.equipped && typeof kid.equipped === 'object') ? kid.equipped : {},   // ②外觀:穿戴快取(per-kid,雲端為準)
         manualUnlock: kid.manual_unlock || {}, checkinEvents: allEvents, ledgerEvents, graduatedAt, covenant, pledgeDone };
     }, () => { this._hydrating = false; this._lastSyncHash = this.syncHash(); });
   }
@@ -1261,6 +1315,7 @@ class Component extends DCLogic {
     const S = this.state;
     const { error } = await this._supa.from('kids').update({ coins: deriveCoins(S.checkinEvents, S.ledgerEvents), xp: S.xp || 0, streak: S.streak || 0,   // coins 只是顯示快取,寫入推導值
       graduation_stage: S.graduationStage || 0, task_on: S.taskOn || {}, manual_unlock: S.manualUnlock || {},
+      equipped: S.equipped || {},   // ②外觀:穿戴快取(per-kid)
       schedules: (S.covenant && S.covenant.schedules) || {} }).eq('id', this._kidId);
     if (error) throw error;
   }
@@ -1647,27 +1702,57 @@ class Component extends DCLogic {
     // 社交需求不標價。示範資料一律為特權/體驗類。稀缺型角標(HOT/新)已移除,唯一角標=「你提案的」。
     // 商城 = items 主檔(內建示範 + 家長自建/孩子提案)未下架且上架中;段位鎖沿用 available()。金幣結餘 = 事件推導。
     const coinBal = deriveCoins(S.checkinEvents, S.ledgerEvents);
-    const shopTab = S.shopTab === 'bag' ? 'bag' : 'shop';
+    const shopTab = (S.shopTab === 'bag' || S.shopTab === 'home') ? S.shopTab : 'shop';   // 商城 / 背包 / 家園
+    const invMap = inventoryOf(S.ledgerEvents);   // 背包推導(shop 卡片判「已擁有」、家園衣櫥皆用)
+    const eqView = cosmeticEquipped(S.equipped, S.items, S.ledgerEvents);   // ②穿戴合法性單一出口
     const activeItems = (S.items || []).filter(it => it.active !== false && !it.delisted);
-    const shop = activeItems.map(it => { const afford = coinBal >= it.cost, locked = !available(it);
+    // Q4:同架同幣,但分兩組——特權/體驗在上、外觀/家園在下。外觀已擁有 → 按鈕灰「已擁有」(不重複購買)
+    const mkCard = (it) => { const afford = coinBal >= it.cost, locked = !available(it);
+      const owned = it.category === 'cosmetic' && invMap[it.id] > 0;
       const short = Math.max(0, it.cost - (coinBal || 0)), g = it.g || 'indigo';
       const pend = it.pending, announce = pend ? ('⏳ ' + (pend.effAt || '').slice(5) + ' 起 ' + (pend.type === 'delist' ? '下架' : '調整為 ' + pend.newCost + ' 幣')) : '';
       return { ...it, gradient: grads[g], costLabel: '' + it.cost, proposed: !!it.proposed, icon: it.icon || 'i-gift',
+        hasArt: !!it.art, noArt: !it.art, art: it.art || '',
         locked, lockLabel: locked ? ('🔒 ' + TIER_NAMES[it.unlockRank || 0] + '解鎖') : '',
-        hasAnnounce: !!announce, announce,
-        btnText: locked ? ('🔒 ' + TIER_NAMES[it.unlockRank || 0] + '解鎖') : (afford ? '購買' : '再存 ' + short + ' 幣'),
-        btnBg: locked ? '#f2f3f7' : (afford ? GRAD : '#f2f3f7'), btnColor: locked ? '#9098ab' : (afford ? '#fff' : '#8890a3'),
-        showProg: !locked && !afford, progPct: Math.min(100, Math.round((coinBal || 0) / it.cost * 100)) + '%',
-        onRedeem: () => { if (locked) return; this.buy({ id: it.id, name: it.name, cost: it.cost, icon: it.icon || 'i-gift', gradient: grads[g] }); } }; });
-    // 背包 = ledger_events 推導結餘(入包 item_acquire − 出包 item_consume),不建持有快照表
-    const invMap = inventoryOf(S.ledgerEvents);
+        hasAnnounce: !!announce, announce, owned,
+        btnText: owned ? '已擁有' : (locked ? ('🔒 ' + TIER_NAMES[it.unlockRank || 0] + '解鎖') : (afford ? '購買' : '再存 ' + short + ' 幣')),
+        btnBg: owned ? '#eef0ff' : (locked ? '#f2f3f7' : (afford ? GRAD : '#f2f3f7')), btnColor: owned ? '#8a8ac2' : (locked ? '#9098ab' : (afford ? '#fff' : '#8890a3')),
+        showProg: !owned && !locked && !afford, progPct: Math.min(100, Math.round((coinBal || 0) / it.cost * 100)) + '%',
+        onRedeem: () => { if (locked || owned) return; this.buy({ id: it.id, name: it.name, cost: it.cost, icon: it.icon || 'i-gift', gradient: grads[g] }); } }; };
+    const shopPriv = activeItems.filter(it => (it.category || 'privilege') !== 'cosmetic').map(mkCard);
+    const shopCosmetic = activeItems.filter(it => it.category === 'cosmetic').map(mkCard);
+    const hasCosmeticShelf = shopCosmetic.length > 0;
+    // 背包 = ledger_events 推導結餘(入包 item_acquire − 出包 item_consume),不建持有快照表。
+    // 外觀道具不消耗:背包按鈕改為「穿上/脫下」(走 equip),特權道具維持「使用」(走 useItem 消耗)。
     const bag = Object.keys(invMap).filter(id => invMap[id] > 0).map(id => {
       const it = (S.items || []).find(x => x.id === id) || { name: id, icon: 'i-gift', g: 'indigo' };
+      const isCos = it.category === 'cosmetic' && !!it.slot;
+      const worn = isCos && eqView[it.slot] && eqView[it.slot].id === id;
       return { id, name: it.name, qty: invMap[id], qtyLabel: '×' + invMap[id], icon: it.icon || 'i-gift', gradient: grads[it.g || 'indigo'],
-        onUse: () => this.useItem(id) };
+        hasArt: !!it.art, noArt: !it.art, art: it.art || '', isCosmetic: isCos, isPrivilege: !isCos,
+        useLabel: worn ? '脫下' : '穿上',
+        onUse: () => this.useItem(id), onEquip: () => this.equip(id) };
     });
     const bagEmpty = bag.length === 0;
     const bagTotal = bag.reduce((n, b) => n + b.qty, 0);
+    // ②家園:靜態圖層疊加(家園背景 → 人物 avatar → 帽子)。穿戴一律讀 eqView(單一出口),不散落判斷。
+    const homeHat = eqView.hat, homeScene = eqView.home;
+    const homeStage = {
+      bg: homeScene ? grads[homeScene.g || 'teal'] : 'linear-gradient(160deg,#eef1f7,#dfe4ee)',
+      hasScene: !!homeScene, sceneArt: homeScene ? homeScene.art : '',
+      avatar: (curKid && curKid.avatar) || '🙂',
+      hasHat: !!homeHat, hatArt: homeHat ? homeHat.art : '',
+      isEmpty: (!homeScene && !homeHat) };
+    // 衣櫥:本波只上 hat + home 槽(outfit 槽保留、示範品下一波)。各列「擁有的」外觀,點選穿/脫。
+    const wardrobeSlots = ['hat', 'home'].map(slot => {
+      const owned = activeItems.filter(it => it.category === 'cosmetic' && it.slot === slot && invMap[it.id] > 0);
+      return { slot, label: SLOT_LABEL[slot], hasItems: owned.length > 0,
+        items: owned.map(it => { const worn = eqView[slot] && eqView[slot].id === it.id;
+          return { id: it.id, name: it.name, art: it.art || '', worn,
+            chipBg: worn ? '#eef0ff' : '#fff', chipBorder: worn ? '#5b5bd6' : '#e7eaf2',
+            wornLabel: worn ? '穿戴中' : '穿上', onTap: () => this.equip(it.id) }; }) };
+    });
+    const wardrobeEmpty = wardrobeSlots.every(s => !s.hasItems);
     const recPat = ['d','d','d','h','d','d','d','d','d','h','d','d','m','d','d','d','d','d','h','d','d','d','d','d','d','h','now','future'];
     const recMap = { d:{ bg:ACC, color:'#fff', ico:'i-check' }, h:{ bg:'#f6efe0', color:'#cf9a2f', ico:'i-heart' }, m:{ bg:'#eef0f6', color:'#aab0c0', ico:'i-close' }, now:{ bg:'#fff', color:'#5b5bd6', ico:'', ring:true }, future:{ bg:'#e9ecf3', color:'#c2c8d6', ico:'' } };
     const recCells = recPat.map(k => { const m = recMap[k]; return { bg: m.bg, color: m.color, ico: m.ico || 'i-check', hasIco: !!m.ico, ringShadow: m.ring ? '0 0 0 2px #5b5bd6 inset' : 'none' }; });
@@ -1806,12 +1891,15 @@ class Component extends DCLogic {
       slideAnim: this.state.slideDir === 'r' ? 'slideInR .22s ease-out' : this.state.slideDir === 'l' ? 'slideInL .22s ease-out' : 'none',
       pullRefreshing: this.state.pullRefreshing,
       colToday: K === 'today' ? ACC : '#a6adbe', colTasks: K === 'tasks' ? ACC : '#a6adbe', colRank: K === 'rank' ? ACC : '#a6adbe', colShop: K === 'shop' ? ACC : '#a6adbe', colRecord: K === 'record' ? ACC : '#a6adbe',
-      habits, dailyTasks, jr, shop, rec, appVersion: APP_VERSION,
+      habits, dailyTasks, jr, rec, appVersion: APP_VERSION,
+      shopPriv, shopCosmetic, hasCosmeticShelf,   // Q4:商城分兩組(特權 / 外觀)
       bag, bagEmpty, bagTotalLabel: bagTotal + ' 件',   // 背包(事件推導)
-      pgShopMain: shopTab === 'shop', pgBag: shopTab === 'bag',
-      onShopTab: () => this.setShopTab('shop'), onBagTab: () => this.setShopTab('bag'),
+      homeStage, wardrobeSlots, wardrobeEmpty,   // ②家園:人物/場景圖層 + 衣櫥
+      pgShopMain: shopTab === 'shop', pgBag: shopTab === 'bag', pgHome: shopTab === 'home',
+      onShopTab: () => this.setShopTab('shop'), onBagTab: () => this.setShopTab('bag'), onHomeTab: () => this.setShopTab('home'),
       shopTabBg: shopTab === 'shop' ? '#fff' : 'transparent', shopTabColor: shopTab === 'shop' ? '#1a1f2e' : '#8890a3',
       bagTabBg: shopTab === 'bag' ? '#fff' : 'transparent', bagTabColor: shopTab === 'bag' ? '#1a1f2e' : '#8890a3',
+      homeTabBg: shopTab === 'home' ? '#fff' : 'transparent', homeTabColor: shopTab === 'home' ? '#1a1f2e' : '#8890a3',
       updateReady: !!this.state.updateReady, onApplyUpdate: () => this.applyUpdate(),
       schedInfoOpen: !!S.schedInfoOpen, onToggleSchedInfo: () => this.toggleSchedInfo(), schedInfoCaret: S.schedInfoOpen ? '▴' : '▾',
       hasDailyTasks: dailyTasks.length > 0, noDailyTasks: dailyTasks.length === 0, pickedLabel: pickedCount + ' 個',

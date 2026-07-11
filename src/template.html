@@ -3927,13 +3927,16 @@
             <div style="display:flex;gap:6px;background:#eef0f6;border-radius:13px;padding:4px;margin-bottom:16px">
               <button onclick="{{ onShopTab }}" style="flex:1;border:0;border-radius:10px;padding:9px;background:{{ shopTabBg }};color:{{ shopTabColor }};font:800 13px 'Noto Sans TC';cursor:pointer;box-shadow:none">商城</button>
               <button onclick="{{ onBagTab }}" style="flex:1;border:0;border-radius:10px;padding:9px;background:{{ bagTabBg }};color:{{ bagTabColor }};font:800 13px 'Noto Sans TC';cursor:pointer">背包 · {{ bagTotalLabel }}</button>
+              <button onclick="{{ onHomeTab }}" style="flex:1;border:0;border-radius:10px;padding:9px;background:{{ homeTabBg }};color:{{ homeTabColor }};font:800 13px 'Noto Sans TC';cursor:pointer">家園</button>
             </div>
             <sc-if value="{{ pgShopMain }}">
+            <!-- Q4:分組——體驗與特權(上) -->
+            <div style="display:flex;align-items:center;gap:7px;margin:2px 4px 11px"><span style="font-weight:900;font-size:14px;color:#1a1f2e">體驗與特權</span><span style="font-size:11px;color:#9098ab">攢金幣換一次自由</span></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
-              <sc-for list="{{ shop }}" as="it" hint-placeholder-count="4">
+              <sc-for list="{{ shopPriv }}" as="it" hint-placeholder-count="4">
                 <div style="position:relative;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:14px;box-shadow:0 6px 16px -16px rgba(0,0,0,.4)">
                   <sc-if value="{{ it.proposed }}"><span style="position:absolute;top:12px;right:12px;background:#eef0ff;color:#4a4ac2;font-weight:800;font-size:9.5px;padding:3px 7px;border-radius:6px">你提案的</span></sc-if>
-                  <div style="width:46px;height:46px;border-radius:14px;background:{{ it.gradient }};display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:11px"><svg style="width:25px;height:25px"><use href="#{{ it.icon }}"></use></svg></div>
+                  <div style="width:46px;height:46px;border-radius:14px;background:{{ it.gradient }};display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:11px"><sc-if value="{{ it.hasArt }}"><span style="font-size:26px;line-height:1">{{ it.art }}</span></sc-if><sc-if value="{{ it.noArt }}"><svg style="width:25px;height:25px"><use href="#{{ it.icon }}"></use></svg></sc-if></div>
                   <div style="font-weight:800;font-size:13.5px;color:#1a1f2e;line-height:1.35;min-height:37px">{{ it.name }}</div>
                   <div style="display:flex;align-items:center;gap:4px;margin:6px 0 10px"><span style="color:#e0a53a;display:flex"><svg style="width:15px;height:15px"><use href="#i-coin"></use></svg></span><span style="font:800 15px 'Baloo 2';color:#1a1f2e">{{ it.costLabel }}</span></div>
                   <sc-if value="{{ it.showProg }}"><div style="height:5px;background:#eef0f6;border-radius:3px;overflow:hidden;margin-bottom:9px"><div style="height:100%;width:{{ it.progPct }};background:linear-gradient(90deg,#e0a53a,#cf9a2f);border-radius:3px"></div></div></sc-if>
@@ -3943,18 +3946,62 @@
               </sc-for>
             </div>
             <button onclick="{{ onOpenRewardPropose }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:15px;margin-top:14px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.98)">💡 我想上架一個獎品</button>
+            <!-- Q4:分組——外觀與家園(下) -->
+            <sc-if value="{{ hasCosmeticShelf }}">
+            <div style="display:flex;align-items:center;gap:7px;margin:22px 4px 11px"><span style="font-weight:900;font-size:14px;color:#1a1f2e">外觀與家園</span><span style="font-size:11px;color:#9098ab">幫人物和家園打扮</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+              <sc-for list="{{ shopCosmetic }}" as="it" hint-placeholder-count="0">
+                <div style="position:relative;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:18px;padding:14px;box-shadow:0 6px 16px -16px rgba(0,0,0,.4)">
+                  <sc-if value="{{ it.proposed }}"><span style="position:absolute;top:12px;right:12px;background:#eef0ff;color:#4a4ac2;font-weight:800;font-size:9.5px;padding:3px 7px;border-radius:6px">你提案的</span></sc-if>
+                  <div style="width:46px;height:46px;border-radius:14px;background:{{ it.gradient }};display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:11px"><sc-if value="{{ it.hasArt }}"><span style="font-size:26px;line-height:1">{{ it.art }}</span></sc-if><sc-if value="{{ it.noArt }}"><svg style="width:25px;height:25px"><use href="#{{ it.icon }}"></use></svg></sc-if></div>
+                  <div style="font-weight:800;font-size:13.5px;color:#1a1f2e;line-height:1.35;min-height:37px">{{ it.name }}</div>
+                  <div style="display:flex;align-items:center;gap:4px;margin:6px 0 10px"><span style="color:#e0a53a;display:flex"><svg style="width:15px;height:15px"><use href="#i-coin"></use></svg></span><span style="font:800 15px 'Baloo 2';color:#1a1f2e">{{ it.costLabel }}</span></div>
+                  <sc-if value="{{ it.showProg }}"><div style="height:5px;background:#eef0f6;border-radius:3px;overflow:hidden;margin-bottom:9px"><div style="height:100%;width:{{ it.progPct }};background:linear-gradient(90deg,#e0a53a,#cf9a2f);border-radius:3px"></div></div></sc-if>
+                  <button onclick="{{ it.onRedeem }}" style="width:100%;border:0;border-radius:11px;padding:10px;background:{{ it.btnBg }};color:{{ it.btnColor }};font:800 13px 'Noto Sans TC';cursor:pointer;transition:transform .1s" style-active="transform:scale(.96)">{{ it.btnText }}</button>
+                </div>
+              </sc-for>
+            </div>
+            </sc-if>
             </sc-if>
             <sc-if value="{{ pgBag }}">
               <sc-if value="{{ bagEmpty }}"><div style="text-align:center;color:#9098ab;font-size:13px;padding:40px 20px;line-height:1.7">背包還是空的<br>去商城把金幣換成想要的吧</div></sc-if>
               <div style="display:flex;flex-direction:column;gap:10px">
                 <sc-for list="{{ bag }}" as="b" hint-placeholder-count="0">
                   <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid rgba(20,25,50,.07);border-radius:16px;padding:13px 14px">
-                    <div style="width:44px;height:44px;border-radius:13px;background:{{ b.gradient }};color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg style="width:24px;height:24px"><use href="#{{ b.icon }}"></use></svg></div>
+                    <div style="width:44px;height:44px;border-radius:13px;background:{{ b.gradient }};color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><sc-if value="{{ b.hasArt }}"><span style="font-size:24px;line-height:1">{{ b.art }}</span></sc-if><sc-if value="{{ b.noArt }}"><svg style="width:24px;height:24px"><use href="#{{ b.icon }}"></use></svg></sc-if></div>
                     <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:#1a1f2e">{{ b.name }}</div><div style="font:700 12px 'Baloo 2';color:#8890a3;margin-top:2px">持有 {{ b.qtyLabel }}</div></div>
-                    <button onclick="{{ b.onUse }}" style="border:1.5px solid #d9dcff;background:#fff;border-radius:11px;padding:9px 15px;color:#5b5bd6;font:800 12.5px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.96)">使用</button>
+                    <sc-if value="{{ b.isPrivilege }}"><button onclick="{{ b.onUse }}" style="border:1.5px solid #d9dcff;background:#fff;border-radius:11px;padding:9px 15px;color:#5b5bd6;font:800 12.5px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.96)">使用</button></sc-if>
+                    <sc-if value="{{ b.isCosmetic }}"><button onclick="{{ b.onEquip }}" style="border:1.5px solid #d9dcff;background:#fff;border-radius:11px;padding:9px 15px;color:#5b5bd6;font:800 12.5px 'Noto Sans TC';cursor:pointer" style-active="transform:scale(.96)">{{ b.useLabel }}</button></sc-if>
                   </div>
                 </sc-for>
               </div>
+            </sc-if>
+            <sc-if value="{{ pgHome }}">
+              <!-- ②家園:靜態圖層疊加(家園背景 → 人物 → 帽子) -->
+              <div style="position:relative;height:230px;border-radius:22px;overflow:hidden;background:{{ homeStage.bg }};border:1px solid rgba(20,25,50,.07);margin-bottom:16px;box-shadow:0 14px 28px -18px rgba(20,25,50,.4)">
+                <sc-if value="{{ homeStage.hasScene }}"><div style="position:absolute;right:16px;bottom:14px;font-size:76px;line-height:1;opacity:.9;filter:drop-shadow(0 6px 10px rgba(0,0,0,.15))">{{ homeStage.sceneArt }}</div></sc-if>
+                <div style="position:absolute;left:0;right:0;bottom:0;height:34px;background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.35))"></div>
+                <div style="position:absolute;left:26px;bottom:20px;display:flex;flex-direction:column;align-items:center">
+                  <sc-if value="{{ homeStage.hasHat }}"><div style="font-size:38px;line-height:1;margin-bottom:-14px;z-index:2;filter:drop-shadow(0 3px 4px rgba(0,0,0,.18))">{{ homeStage.hatArt }}</div></sc-if>
+                  <div style="font-size:72px;line-height:1;filter:drop-shadow(0 6px 8px rgba(0,0,0,.18))">{{ homeStage.avatar }}</div>
+                </div>
+                <sc-if value="{{ homeStage.isEmpty }}"><div style="position:absolute;top:16px;left:18px;right:18px;font-size:12px;color:#6a7286;background:rgba(255,255,255,.65);border-radius:12px;padding:8px 11px;line-height:1.5">去商城買外觀，回到這裡幫自己和家園打扮 ✨</div></sc-if>
+              </div>
+              <sc-if value="{{ wardrobeEmpty }}"><div style="text-align:center;color:#9098ab;font-size:13px;padding:26px 20px;line-height:1.7">還沒有外觀道具<br>去商城的「外觀與家園」逛逛吧</div></sc-if>
+              <sc-for list="{{ wardrobeSlots }}" as="w" hint-placeholder-count="0">
+                <sc-if value="{{ w.hasItems }}">
+                  <div style="font-weight:800;font-size:13px;color:#1a1f2e;margin:0 4px 9px">{{ w.label }}</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:9px;margin-bottom:16px">
+                    <sc-for list="{{ w.items }}" as="c" hint-placeholder-count="0">
+                      <button onclick="{{ c.onTap }}" style="display:flex;flex-direction:column;align-items:center;gap:5px;width:78px;padding:12px 6px;border:1.5px solid {{ c.chipBorder }};background:{{ c.chipBg }};border-radius:15px;cursor:pointer" style-active="transform:scale(.96)">
+                        <span style="font-size:32px;line-height:1">{{ c.art }}</span>
+                        <span style="font-size:11px;font-weight:700;color:#1a1f2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:66px">{{ c.name }}</span>
+                        <span style="font-size:10px;font-weight:800;color:#5b5bd6">{{ c.wornLabel }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </sc-for>
             </sc-if></div></sc-if>
         <sc-if value="{{ pgRecord }}"><div class="scroll" style="animation:{{ slideAnim }}"><div style="font-weight:900;font-size:20px;color:#1a1f2e;margin:0 4px 16px">我的紀錄</div>
             <div style="display:flex;gap:11px;margin-bottom:13px">
