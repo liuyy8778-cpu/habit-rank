@@ -20,6 +20,10 @@
 - **忘記家長 PIN 的救援**:PIN 改家庭層級上雲後,原「登出重設」失效(已移除該按鈕)。
   需做「寄 magic link 到家長 email → 點連結 → 清 families.parent_pin」的救援流程。暫時:家長可自行到
   Supabase 後台清該欄位。
+- **Supabase Auth redirect 白名單加 Vercel preview 網域**(既有 backlog,沿用):magic link 的
+  `emailRedirectTo` 走 `location.href`,preview 網域未列入 Supabase Auth 白名單 → preview 上真登入會被擋。
+  ②驗收以 DevTools 切裝置繞過。**下一條分支(③成就大樹)開工前順手做**:Supabase Auth → URL Configuration
+  加入 Vercel preview 網域樣式。
 
 ## 🧭 基線觀察期(進行中,禁動激勵結構)
 - **#1 獎勵淡出曲線**:等 #3 埋點累積 2–3 週基線數據後才校準,現在不碰任何獎勵參數。
@@ -119,3 +123,6 @@
 
 ## 🐛 小改善
 - proposals/pledges 之外的多裝置一致性再驗(#4 已做主體)。
+- **唯讀檢視模式(家長偷看)下無法切換獎勵頁子分頁**(商城/背包/家園)——②驗收 A11 觀察到的顯示層小瑕疵。
+  原則:家長偷看應**可翻頁、僅禁操作**。子分頁切換(`setShopTab`)不寫任何資料,preview 下應放行;
+  只有 buy/equip/useItem 等**寫入操作**維持 preview 擋。修時檢查 preview 是否在更外層攔掉了整頁點擊。
