@@ -36,6 +36,19 @@
 - `node --check src/app.js`、sc-if/sc-for 開閉數平衡檢查、`python3 build.py`。
 - 端到端:`python3 -m http.server` + Playwright(chromium 在 `/opt/pw-browsers/chromium`)。注意:沙箱連不到 Supabase(網路白名單),雲端流程需真人實測。
 
+## 驗收動線(固定 staging,重要)
+
+避免每條任務分支各產生新 preview 網址(每輪都要重處理 Vercel Share 連結、Supabase magic link 撞 rate limit、裝置模式重設)。改用**固定 staging 指標**,驗收裝置一次設定永久復用。
+
+- **永久分支 `staging` = 驗收專用指標**:不承載開發、不直接改動、不從它開分支。它永遠只是「當前要驗收的那顆 commit」的指標。
+- **推上驗收**:任務分支本機驗證過後,把該分支覆蓋到 staging:
+  `git push origin <任務分支>:staging --force`
+  (staging 只是指標,force 覆蓋無損失;歷史真相在任務分支與 PR。)
+- **固定驗收網址**(永久復用):`https://habit-rank-git-staging-liu-s-projects14.vercel.app`
+- **驗收通過後**照舊:任務分支開 PR 合併 `main`、刪任務分支;`staging` 留著指向舊 commit 即可,下次驗收再覆蓋。
+- **驗收紀律**:一律用**測試小孩(小朋唷)**,不碰真實孩子資料;含 seed 資料的遷移遵守上方「共用 DB 遷移相容鐵律」。
+- Supabase Auth redirect 白名單已收斂到 staging 固定網域(不再逐 preview 加白名單)。
+
 ## 設計負面清單(每個 PR 都要過)
 
 不做手足比較、不碰隨機性/賭博機制、不增加螢幕黏著度、獎勵「準時停止」而非任務量。詳見上方 `@docs/design-advisor.md` 顧問角色。
