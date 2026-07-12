@@ -38,6 +38,11 @@
     border-radius:22px;position:relative;overflow:hidden;height:340px;border:1px solid var(--line);
     box-shadow:0 20px 40px -26px rgba(20,25,50,.5);margin-bottom:8px}
   .hero svg{position:absolute;inset:0;width:100%;height:100%}
+  .treezone{position:absolute;left:1%;top:0;bottom:0;width:56%}
+  .slot-hint{position:absolute;right:4%;top:50%;transform:translateY(-50%);width:34%;
+    border:1.5px dashed #b9c2d8;border-radius:16px;padding:16px 10px;text-align:center;
+    color:#98a1bd;font-size:12px;line-height:1.5;background:rgba(255,255,255,.28)}
+  .slot-hint small{display:block;font-size:10.5px;margin-top:4px;opacity:.85}
   .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:12.5px;color:var(--sub)}
   .legend b{color:var(--ink)}
   .swatchwrap{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;
@@ -86,7 +91,7 @@
   </defs></svg>
 
   <h1>🌳 ③成就大樹 · 視覺定稿頁</h1>
-  <div class="freeze">視覺凍結點 · 靜態全狀態 · 無互動無動畫</div>
+  <div class="freeze">視覺凍結點 · 步驟 2 · 詞彙定稿 🌱🌸🍎 · 構圖留白 · 無互動無動畫</div>
   <p class="lead">
     這頁只做一件事:把 A/B/C 三包拍板要的視覺資產<b>全狀態攤開</b>給你目視定稿。<br>
     inline SVG 只畫「樹幹/枝條」(連續生長 + 花果掛點),花苞/開花/結果一律 emoji 疊層(與②家園同一詞彙)。
@@ -109,49 +114,49 @@
     <div class="cap">同一棵樹 · 三態並存</div>
   </div>
   <div class="legend" style="justify-content:center">
-    <span>🌷 <b>花苞</b>(建立中)</span><span>🌸 <b>開花</b>(L1)</span><span>🍎 <b>結果</b>(畢業)</span>
+    <span>🌱 <b>花苞</b>(建立中)</span><span>🌸 <b>開花</b>(L1)</span><span>🍎 <b>結果</b>(畢業)</span>
   </div>
 
-  <!-- ============ 區塊 3：emoji 候選盤 ============ -->
-  <h2>③ 花況 emoji 候選盤(請圈選最終詞彙)</h2>
-  <p class="note">預設(綠框)那組是我方建議。若你想換,直接圈候選格;也可選右側「同花漸開」風格(同一朵花由小到大)。</p>
+  <!-- ============ 區塊 3：花況詞彙(D 已定稿) ============ -->
+  <h2>③ 花況詞彙(拍板 D · 已定稿)</h2>
+  <p class="note">α 異形三態,色相分離(綠→粉→紅)為辨識護欄。全樹果實統一 🍎(禁品種/稀有度差異)。此列為最終詞彙,非選單。</p>
   <div class="swatchwrap">
     <div class="srow">
-      <div class="slabel">花苞<small>bud · L0</small></div>
-      <div class="cand">
-        <div class="chip def">🌷</div><div class="chip">🌱</div><div class="chip">🏵️</div><div class="chip">💠</div><div class="chip">🫧</div>
+      <div class="slabel">最終三態<small>α 異形 · 已鎖定</small></div>
+      <div class="cand" style="align-items:center">
+        <div class="chip def" style="font-size:28px">🌱</div><span class="arrow">→</span>
+        <div class="chip def" style="font-size:28px">🌸</div><span class="arrow">→</span>
+        <div class="chip def" style="font-size:28px">🍎</div>
+        <span class="pair" style="margin-left:10px">🌱 花苞(L0)&nbsp;→&nbsp;🌸 開花(L1)&nbsp;→&nbsp;🍎 結果(畢業)</span>
       </div>
     </div>
     <div class="srow">
-      <div class="slabel">開花<small>bloom · L1</small></div>
-      <div class="cand">
-        <div class="chip def">🌸</div><div class="chip">🌺</div><div class="chip">🌼</div><div class="chip">🌻</div><div class="chip">💮</div>
+      <div class="slabel" style="color:var(--sub)">已排除<small>不採用</small></div>
+      <div class="cand" style="font-size:12.5px;color:var(--sub);align-items:center">
+        <span style="opacity:.5">🌷 花苞</span>（完整花形當「未開」語意相反）&nbsp;·&nbsp;
+        <span>β 同花漸開</span>（小尺寸辨識不足 + 誘發尺寸過渡動畫,撞動畫紅線）
       </div>
     </div>
     <div class="srow">
-      <div class="slabel">結果<small>fruit · 畢業</small></div>
-      <div class="cand">
-        <div class="chip def">🍎</div><div class="chip">🍑</div><div class="chip">🍊</div><div class="chip">🫐</div><div class="chip">🍒</div>
-      </div>
-    </div>
-    <div class="srow">
-      <div class="slabel">風格選項<small>兩種取一</small></div>
-      <div class="cand" style="gap:20px">
-        <div class="pair"><b style="color:var(--ink)">α 異形</b>&nbsp; 🌷<span class="arrow">→</span>🌸<span class="arrow">→</span>🍎</div>
-        <div class="pair"><b style="color:var(--ink)">β 同花漸開</b>&nbsp;
-          <span style="font-size:15px">🌸</span><span class="arrow">→</span><span style="font-size:23px">🌸</span><span class="arrow">→</span>🍎</div>
+      <div class="slabel">跨平台檢查<small>步驟 2 重點</small></div>
+      <div class="cand" style="font-size:12.5px;color:#9a6a1c;align-items:center;line-height:1.6">
+        ⚠ 此截圖為 Linux/Noto 字形;<b style="color:var(--ink)">請務必在孩子固定測試機(手機)實看</b>——
+        iOS/Android/Windows 三方 emoji 長相不同。檢查:樹冠最小尺寸下,三態能否靠色相一眼掃讀分清(渲染 ≥16px)。
       </div>
     </div>
   </div>
 
   <!-- ============ 區塊 4：綜合 hero ============ -->
   <h2>④ 綜合示意(金段樹 · 6 條枝混合花況 · 入 app 家園風格盒)</h2>
-  <p class="note">這是實際入 app 後的樣子:與②家園同一種漸層盒 + drop-shadow。示意 = 3 花苞 · 2 開花 · 1 結果。</p>
+  <p class="note">
+    實際入 app 後的樣子:與②家園同一種漸層盒 + drop-shadow。示意 = 3 花苞 · 2 開花 · 1 結果。<br>
+    <b>構圖預留</b>:樹體偏軸靠左、佔場景寬約 55%,右側明確留白 = 未來外觀槽位(背景主題/寵物)預留位——本分支不做槽位,只在構圖上留出空間。
+  </p>
   <div class="hero" id="hero"></div>
   <div class="legend">
     <span><b>樹身</b>:金段(maxTier 3)</span>
-    <span>🌷×3 建立中</span><span>🌸×2 已開花</span><span>🍎×1 已畢業</span>
-    <span style="color:#9aa2bd">※ 常駐僅 floaty 微搖曳(此頁靜態不演)</span>
+    <span>🌱×3 建立中</span><span>🌸×2 已開花</span><span>🍎×1 已畢業</span>
+    <span style="color:#9aa2bd">※ 右側留白區為擴充預留 · 常駐僅 floaty 微搖曳(此頁靜態不演)</span>
   </div>
 
   <!-- ============ 紅線自檢 ============ -->
@@ -162,8 +167,12 @@
     <b>零產出</b>:此頁純展示,不給金幣、不解鎖任何東西 <span class="ok">✓</span><br>
     <b>不綁信任現況</b>:樹只講「曾經到過哪」,信任降級不落回花期 <span class="ok">✓</span><br>
     <b>視覺語言統一</b>:SVG 只做樹幹/枝條,花果 = emoji(同②家園) <span class="ok">✓</span><br>
+    <b>果實統一(拍板 D 第6條)</b>:全樹果實一律 🍎,禁品種/稀有度/圖鑑式差異 → 樹是紀念冊非圖鑑 <span class="ok">✓</span><br>
+    <b>構圖留白(布局補充)</b>:樹體偏軸佔 ~55% 寬,右側留白為外觀槽位預留(本分支不做槽位) <span class="ok">✓</span><br>
     <b>動畫紅線(此頁預留,尚未實作)</b>:僅允許進頁一次性生長回放 ≤2s + 新果 popIn 一次 + floaty 微搖曳;
-      <span class="no">禁</span>進行式/粒子/閃爍/循環變色
+      <span class="no">禁</span>進行式/粒子/閃爍/循環變色<br>
+    <b style="color:#c0453b">⚠ 待評估(對比風險)</b>:🌱 花苞為綠色、樹冠亦綠 → 綠疊綠對比偏低,樹冠上花苞較難掃讀。
+      D 的色相分離(綠/粉/紅)指三態彼此,未計花苞綠撞樹冠綠。建議:emoji 底加淡色襯底圓(不動詞彙)提升對比——待拍板。
   </div>
 
   <p class="foot">
@@ -258,7 +267,7 @@ function placeFlowers(container, stage, states, size){
   var tr=treeSVG(stage);
   container.innerHTML='<svg viewBox="0 0 240 250" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">'+tr.svg.replace(/^<svg[^>]*>/,'').replace(/<\/svg>$/,'')+'</svg>';
   var pts=anchors(stage, states.length);
-  var EMO={bud:'🌷', bloom:'🌸', fruit:'🍎'};
+  var EMO={bud:'🌱', bloom:'🌸', fruit:'🍎'};
   states.forEach(function(st,i){
     var e=document.createElement('div'); e.className='flower';
     e.style.left=pts[i][0]+'%'; e.style.top=pts[i][1]+'%';
@@ -274,8 +283,14 @@ placeFlowers(document.getElementById('branchDemo'), 3,
   ['bud','bloom','fruit','bud','bloom','fruit'], 26);
 
 // 區塊4：hero 綜合（金段，3 花苞 2 開花 1 結果）
+// 構圖預留：樹體偏軸靠左佔 ~55% 寬，右側明確留白＝未來外觀槽位預留位（本分支不做槽位）
 var hero=document.getElementById('hero');
-placeFlowers(hero, 3, ['bud','bud','bud','bloom','bloom','fruit'], 30);
+var zone=document.createElement('div'); zone.className='treezone';
+hero.appendChild(zone);
+placeFlowers(zone, 3, ['bud','bud','bud','bloom','bloom','fruit'], 30);
+var slot=document.createElement('div'); slot.className='slot-hint';
+slot.innerHTML='未來外觀槽位（預留）<small>背景主題 · 寵物<br>本分支不實作，僅留位</small>';
+hero.appendChild(slot);
 </script>
 </body>
 </html>
