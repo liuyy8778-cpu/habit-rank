@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>③成就大樹 · 視覺定稿頁</title>
+<style>
+  :root{
+    --ink:#232a45; --sub:#6b7290; --line:rgba(20,25,50,.08);
+    --card:#ffffff; --bg1:#eef2fb; --bg2:#e7ecf7;
+    --brown1:#b07b45; --brown2:#7c5127;
+    --leaf1:#a7dd8a; --leaf2:#6cbe61; --leaf3:#4a9c4d;
+    --gold:#f4c760;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang TC","Noto Sans TC",system-ui,sans-serif;
+    color:var(--ink);background:linear-gradient(180deg,#f4f7fe,#eef2fb);padding:22px 16px 60px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:.5px}
+  .lead{color:var(--sub);font-size:13.5px;line-height:1.7;margin:0 0 6px}
+  .freeze{display:inline-block;background:#fff5e6;color:#9a6a1c;border:1px solid #f2dcae;
+    border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600;margin:8px 0 4px}
+  h2{font-size:15px;margin:34px 0 4px;padding-top:16px;border-top:1px solid var(--line)}
+  .note{color:var(--sub);font-size:12.5px;line-height:1.65;margin:2px 0 14px}
+  .grid{display:grid;gap:14px}
+  .g6{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:620px){.g6{grid-template-columns:repeat(2,1fr)}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 10px 14px;
+    box-shadow:0 14px 30px -22px rgba(20,25,50,.5);text-align:center}
+  .stage{position:relative;border-radius:14px;overflow:hidden;
+    background:radial-gradient(120% 90% at 50% 12%,#eaf4ff 0%,#e5f0ea 70%,#e0ebe1 100%);
+    aspect-ratio:1/1}
+  .stage svg{width:100%;height:100%;display:block}
+  .cap{font-size:13px;font-weight:700;margin-top:9px}
+  .cap small{display:block;font-weight:500;color:var(--sub);font-size:11px;margin-top:2px}
+  .flower{position:absolute;line-height:1;filter:drop-shadow(0 3px 3px rgba(0,0,0,.16))}
+  .hero{background:radial-gradient(130% 100% at 50% 8%,#eef7ff 0%,#e6f1ea 62%,#dfeadf 100%);
+    border-radius:22px;position:relative;overflow:hidden;height:340px;border:1px solid var(--line);
+    box-shadow:0 20px 40px -26px rgba(20,25,50,.5);margin-bottom:8px}
+  .hero svg{position:absolute;inset:0;width:100%;height:100%}
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:12.5px;color:var(--sub)}
+  .legend b{color:var(--ink)}
+  .swatchwrap{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;
+    box-shadow:0 14px 30px -24px rgba(20,25,50,.5)}
+  .srow{display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px dashed var(--line);flex-wrap:wrap}
+  .srow:last-child{border-bottom:none}
+  .slabel{width:120px;font-size:13px;font-weight:700}
+  .slabel small{display:block;color:var(--sub);font-weight:500;font-size:11px}
+  .cand{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{width:46px;height:46px;border-radius:12px;background:#f4f6fc;border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:26px;line-height:1}
+  .chip.def{background:#eef7ee;border-color:#c7e6c3;box-shadow:0 0 0 2px #c7e6c3 inset}
+  .pair{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--sub)}
+  .arrow{color:#9aa2bd;font-size:16px}
+  .redlines{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 18px;
+    font-size:12.5px;line-height:1.85;color:#4a5170;box-shadow:0 14px 30px -24px rgba(20,25,50,.5)}
+  .redlines b{color:var(--ink)}
+  .ok{color:#2f8f4e;font-weight:700}
+  .no{color:#c0453b;font-weight:700}
+  .foot{color:var(--sub);font-size:11.5px;margin-top:30px;text-align:center;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 共享漸層/濾鏡定義（跨頁內所有 inline SVG 共用，reference by url(#id)） -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <linearGradient id="trunk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c68b52"/><stop offset="1" stop-color="#7c5127"/>
+    </linearGradient>
+    <linearGradient id="trunkGold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d9a55f"/><stop offset="1" stop-color="#9a6a24"/>
+    </linearGradient>
+    <radialGradient id="leaf" cx="42%" cy="34%" r="72%">
+      <stop offset="0" stop-color="#b6e39a"/><stop offset="55%" stop-color="#6cbe61"/><stop offset="1" stop-color="#4a9c4d"/>
+    </radialGradient>
+    <radialGradient id="leafGold" cx="42%" cy="34%" r="72%">
+      <stop offset="0" stop-color="#d8efb0"/><stop offset="50%" stop-color="#8fd06a"/><stop offset="1" stop-color="#5aa54a"/>
+    </radialGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#2b5a2a" flood-opacity="0.20"/>
+    </filter>
+    <radialGradient id="ground" cx="50%" cy="30%" r="70%">
+      <stop offset="0" stop-color="#c9a877"/><stop offset="1" stop-color="#a9885f"/>
+    </radialGradient>
+  </defs></svg>
+
+  <h1>🌳 ③成就大樹 · 視覺定稿頁</h1>
+  <div class="freeze">視覺凍結點 · 靜態全狀態 · 無互動無動畫</div>
+  <p class="lead">
+    這頁只做一件事:把 A/B/C 三包拍板要的視覺資產<b>全狀態攤開</b>給你目視定稿。<br>
+    inline SVG 只畫「樹幹/枝條」(連續生長 + 花果掛點),花苞/開花/結果一律 emoji 疊層(與②家園同一詞彙)。
+    純文字、走 build.py、零二進位資產。<b>定稿後才開工互動與動畫。</b>
+  </p>
+
+  <!-- ============ 區塊 1：樹身六階 ============ -->
+  <h2>① 樹身六階(讀 <code>maxTier</code> 高水位,canopy 隨段位長大)</h2>
+  <p class="note">只長不枯:樹身一律以歷來最高段位顯示,XP 回吐也不縮。此列先不掛花果,單看「樹本身」的生長。</p>
+  <div class="grid g6" id="bodyGrid"></div>
+
+  <!-- ============ 區塊 2：枝三態 ============ -->
+  <h2>② 枝三態生命週期(每個關鍵習慣一條枝 · 花只開不謝)</h2>
+  <p class="note">
+    花苞(習慣建立/L0)→ 開花(升 L1)→ 結果(升 L2 畢業)。三態<b>離散</b>顯示——無進度條、無百分比、無「還差 N」。
+    信任降級不收回花期(只開不謝)。下圖為一棵金段樹,六條枝各停在不同階段:
+  </p>
+  <div class="card" style="max-width:420px;margin:0 auto">
+    <div class="stage" id="branchDemo"></div>
+    <div class="cap">同一棵樹 · 三態並存</div>
+  </div>
+  <div class="legend" style="justify-content:center">
+    <span>🌷 <b>花苞</b>(建立中)</span><span>🌸 <b>開花</b>(L1)</span><span>🍎 <b>結果</b>(畢業)</span>
+  </div>
+
+  <!-- ============ 區塊 3：emoji 候選盤 ============ -->
+  <h2>③ 花況 emoji 候選盤(請圈選最終詞彙)</h2>
+  <p class="note">預設(綠框)那組是我方建議。若你想換,直接圈候選格;也可選右側「同花漸開」風格(同一朵花由小到大)。</p>
+  <div class="swatchwrap">
+    <div class="srow">
+      <div class="slabel">花苞<small>bud · L0</small></div>
+      <div class="cand">
+        <div class="chip def">🌷</div><div class="chip">🌱</div><div class="chip">🏵️</div><div class="chip">💠</div><div class="chip">🫧</div>
+      </div>
+    </div>
+    <div class="srow">
+      <div class="slabel">開花<small>bloom · L1</small></div>
+      <div class="cand">
+        <div class="chip def">🌸</div><div class="chip">🌺</div><div class="chip">🌼</div><div class="chip">🌻</div><div class="chip">💮</div>
+      </div>
+    </div>
+    <div class="srow">
+      <div class="slabel">結果<small>fruit · 畢業</small></div>
+      <div class="cand">
+        <div class="chip def">🍎</div><div class="chip">🍑</div><div class="chip">🍊</div><div class="chip">🫐</div><div class="chip">🍒</div>
+      </div>
+    </div>
+    <div class="srow">
+      <div class="slabel">風格選項<small>兩種取一</small></div>
+      <div class="cand" style="gap:20px">
+        <div class="pair"><b style="color:var(--ink)">α 異形</b>&nbsp; 🌷<span class="arrow">→</span>🌸<span class="arrow">→</span>🍎</div>
+        <div class="pair"><b style="color:var(--ink)">β 同花漸開</b>&nbsp;
+          <span style="font-size:15px">🌸</span><span class="arrow">→</span><span style="font-size:23px">🌸</span><span class="arrow">→</span>🍎</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 區塊 4：綜合 hero ============ -->
+  <h2>④ 綜合示意(金段樹 · 6 條枝混合花況 · 入 app 家園風格盒)</h2>
+  <p class="note">這是實際入 app 後的樣子:與②家園同一種漸層盒 + drop-shadow。示意 = 3 花苞 · 2 開花 · 1 結果。</p>
+  <div class="hero" id="hero"></div>
+  <div class="legend">
+    <span><b>樹身</b>:金段(maxTier 3)</span>
+    <span>🌷×3 建立中</span><span>🌸×2 已開花</span><span>🍎×1 已畢業</span>
+    <span style="color:#9aa2bd">※ 常駐僅 floaty 微搖曳(此頁靜態不演)</span>
+  </div>
+
+  <!-- ============ 紅線自檢 ============ -->
+  <h2>⑤ 本頁對照的紅線(自檢)</h2>
+  <div class="redlines">
+    <b>只長不枯</b>:樹身讀 maxTier 高水位、果實永久掛樹、花只開不謝 → <span class="ok">全頁無任何凋謝/枯萎/褪色呈現</span><br>
+    <b>不做 streak / 每日壓力</b>:無進度條、無百分比、無連續天數、無「還差 N」→ 三態純離散 <span class="ok">✓</span><br>
+    <b>零產出</b>:此頁純展示,不給金幣、不解鎖任何東西 <span class="ok">✓</span><br>
+    <b>不綁信任現況</b>:樹只講「曾經到過哪」,信任降級不落回花期 <span class="ok">✓</span><br>
+    <b>視覺語言統一</b>:SVG 只做樹幹/枝條,花果 = emoji(同②家園) <span class="ok">✓</span><br>
+    <b>動畫紅線(此頁預留,尚未實作)</b>:僅允許進頁一次性生長回放 ≤2s + 新果 popIn 一次 + floaty 微搖曳;
+      <span class="no">禁</span>進行式/粒子/閃爍/循環變色
+  </div>
+
+  <p class="foot">
+    tree-preview.html · 走 staging 目視定稿用 · 不連 app state · 定稿後移植進 template.html/app.js<br>
+    @@BUILD@@ 由正式頁代入;本頁為獨立視覺凍結檔
+  </p>
+</div>
+
+<script>
+/* 本頁 SVG 由此腳本輸出「靜態」標記(產出即定，無互動無動畫)。
+   移植進 app 時，同一套 path 會改成 template 內的靜態 SVG（本頁只為快速定稿）。 */
+
+// ---- 樹身生成：給定 stage(0..5) 回傳 SVG 內容（trunk + 枝 + canopy blobs）----
+function treeSVG(stage, opts){
+  opts = opts || {};
+  // 每階參數：主幹頂端 y、樹冠中心 y、樹冠半徑、枝條組、金色特例
+  var P = [
+    {topY:200, cy:190, r:20, limbs:0},                         // 0 見習：幼苗
+    {topY:172, cy:158, r:32, limbs:2},                         // 1 銅段：小樹
+    {topY:150, cy:132, r:44, limbs:3},                         // 2 銀段
+    {topY:130, cy:112, r:54, limbs:4},                         // 3 金段
+    {topY:114, cy:96,  r:64, limbs:5},                         // 4 鑽石
+    {topY:100, cy:84,  r:73, limbs:6, gold:true}               // 5 傳說
+  ][stage];
+  var cx=120, baseY=236;
+  var trunkFill = P.gold ? 'url(#trunkGold)' : 'url(#trunk)';
+  var leafFill  = P.gold ? 'url(#leafGold)'  : 'url(#leaf)';
+  var s = '<svg viewBox="0 0 240 250" xmlns="http://www.w3.org/2000/svg">';
+  // 地面小丘
+  s += '<ellipse cx="'+cx+'" cy="'+(baseY+2)+'" rx="'+(P.r*0.9+26)+'" ry="12" fill="url(#ground)" opacity="0.7"/>';
+  // 主幹（下寬上窄的梯形 path）
+  var bw = 9 + stage*2.4;             // 底寬隨階加粗
+  var tw = 3 + stage*1.0;             // 頂寬
+  s += '<path d="M'+(cx-bw)+' '+baseY+' Q'+(cx-tw*1.6)+' '+((baseY+P.topY)/2)+' '+(cx-tw)+' '+P.topY
+     + ' L'+(cx+tw)+' '+P.topY+' Q'+(cx+tw*1.6)+' '+((baseY+P.topY)/2)+' '+(cx+bw)+' '+baseY+' Z" fill="'+trunkFill+'"/>';
+  // 枝條（對稱斜出，數量隨階）
+  var limbAngles = [[-1,0.55],[1,0.42],[-1,0.30],[1,0.62],[-1,0.72],[1,0.22]];
+  for(var i=0;i<P.limbs;i++){
+    var a=limbAngles[i], dir=a[0], frac=a[1];
+    var y0 = P.topY + (baseY-P.topY)*0.12 + i*6;
+    var x1 = cx + dir*(P.r*0.72*frac+8), y1 = P.cy + (frac-0.4)*P.r*0.6;
+    s += '<path d="M'+cx+' '+y0+' Q'+(cx+dir*10)+' '+((y0+y1)/2)+' '+x1+' '+y1+'" stroke="'+trunkFill
+       + '" stroke-width="'+(2.4+stage*0.5)+'" fill="none" stroke-linecap="round"/>';
+  }
+  // 樹冠：主 blob + 數個偏移小 blob，帶 drop-shadow
+  s += '<g filter="url(#soft)">';
+  var blobs = P.r < 25
+    ? [[0,0,P.r]]
+    : [[0,2,P.r],[-P.r*0.62,P.r*0.12,P.r*0.66],[P.r*0.62,P.r*0.10,P.r*0.66],
+       [-P.r*0.30,-P.r*0.48,P.r*0.60],[P.r*0.32,-P.r*0.46,P.r*0.58],[0,-P.r*0.20,P.r*0.72]];
+  blobs.forEach(function(b){
+    s += '<circle cx="'+(cx+b[0]).toFixed(1)+'" cy="'+(P.cy+b[1]).toFixed(1)+'" r="'+b[2].toFixed(1)+'" fill="'+leafFill+'"/>';
+  });
+  s += '</g>';
+  // 傳說：極淡金光暈（靜態，非動畫）
+  if(P.gold){
+    s += '<circle cx="'+cx+'" cy="'+P.cy+'" r="'+(P.r+10)+'" fill="none" stroke="#f2c764" stroke-width="2" opacity="0.28"/>';
+  }
+  s += '</svg>';
+  return {svg:s, P:P, cx:cx};
+}
+
+var TIERS = [
+  ['見習','XP 0'],['銅段','XP 300'],['銀段','XP 800'],
+  ['金段','XP 1800'],['鑽石','XP 3500'],['傳說','XP 6000']
+];
+var bodyGrid = document.getElementById('bodyGrid');
+for(var t=0;t<6;t++){
+  var d=document.createElement('div'); d.className='card';
+  d.innerHTML = '<div class="stage">'+treeSVG(t).svg+'</div>'
+    + '<div class="cap">'+TIERS[t][0]+'<small>maxTier '+t+' · '+TIERS[t][1]+'</small></div>';
+  bodyGrid.appendChild(d);
+}
+
+// ---- 花果掛點：給定樹回傳 canopy 上的座標（百分比，供 emoji 絕對定位）----
+function anchors(stage, n){
+  var tr = treeSVG(stage), P=tr.P, cx=tr.cx;
+  // 掛點沿樹冠內緣分布：水平限在 ±0.66r（嵌進樹冠、不飄出邊緣），高度隨水平位置成拱形
+  var pts=[], spread = P.r*0.66;
+  var seq=[-0.58,0.58,-0.20,0.24,-0.40,0.42,0]; // 先左右外、再內、再中，避免擠成一團
+  var yoff=[0.06,0.10,-0.04,-0.02,0.20,0.22,-0.10];
+  for(var i=0;i<n;i++){
+    var fx=seq[i]!==undefined?seq[i]:(i-(n-1)/2)/n*1.2;
+    var ax=cx+fx*spread;
+    var ay=P.cy - (0.34-Math.abs(fx)*0.30)*P.r + (yoff[i]||0)*P.r; // 拱形：中間高、兩側低
+    pts.push([ax/240*100, ay/250*100]);
+  }
+  return pts;
+}
+function placeFlowers(container, stage, states, size){
+  size=size||26;
+  var tr=treeSVG(stage);
+  container.innerHTML='<svg viewBox="0 0 240 250" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">'+tr.svg.replace(/^<svg[^>]*>/,'').replace(/<\/svg>$/,'')+'</svg>';
+  var pts=anchors(stage, states.length);
+  var EMO={bud:'🌷', bloom:'🌸', fruit:'🍎'};
+  states.forEach(function(st,i){
+    var e=document.createElement('div'); e.className='flower';
+    e.style.left=pts[i][0]+'%'; e.style.top=pts[i][1]+'%';
+    e.style.transform='translate(-50%,-50%)';
+    e.style.fontSize=(st==='fruit'?size+4:size)+'px';
+    e.textContent=EMO[st];
+    container.appendChild(e);
+  });
+}
+
+// 區塊2：金段樹，六枝三態並存
+placeFlowers(document.getElementById('branchDemo'), 3,
+  ['bud','bloom','fruit','bud','bloom','fruit'], 26);
+
+// 區塊4：hero 綜合（金段，3 花苞 2 開花 1 結果）
+var hero=document.getElementById('hero');
+placeFlowers(hero, 3, ['bud','bud','bud','bloom','bloom','fruit'], 30);
+</script>
+</body>
+</html>
