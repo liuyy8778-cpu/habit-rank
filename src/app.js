@@ -148,7 +148,7 @@ function inventoryOf(ledger) {
 
 // ===== 資料遷移:localStorage schema 版本控管 =====
 // 每次啟動檢查版本,舊資料無損升級並先備份到 backup_v1。
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 function migrateToV2(s) {
   if (!s || s.schemaVersion === SCHEMA_VERSION) return s;
   let v = s.schemaVersion || 1;
@@ -214,6 +214,10 @@ function migrateToV2(s) {
     DEFAULT_ITEMS.filter(d => d.category === 'cosmetic' && !have.has(d.id)).forEach(d => m.items.push({ ...d })); // 補入內建外觀(舊用戶也看得到)
     if (!m.equipped || typeof m.equipped !== 'object') m.equipped = {}; // 穿戴指標 { hat, outfit, home }
     v = 9;
+  }
+  if (v < 10) {                                                     // 自訂任務(custom_tasks):family 共享目錄,啟用走 kidId(非 taskOn),reset-proof
+    if (!Array.isArray(m.customTasks)) m.customTasks = [];
+    v = 10;
   }
   m.schemaVersion = SCHEMA_VERSION;
   return m;
@@ -506,6 +510,7 @@ class Component extends DCLogic {
     newTerm: '', sealing: null, missAsk: null,
     propText: '', propReason: '', newPledge: '', pledgeDone: {}, proposeOpen: false, proposeKind: 'covenant', pendingDeletes: [],
     items: DEFAULT_ITEMS.map(d => ({ ...d })),   // 商城 items 主檔(family 共享;雲端 items 表,本機 seed 內建示範品)
+    customTasks: [],    // 自訂任務(family 共享目錄,鏡像 items);啟用 = 該列 active 且 kidId===當前孩子(不走 taskOn,reset 掃不到)
     ledgerEvents: [],   // 金幣/道具帳本(append-only:coin_spend / item_acquire / item_consume)。餘額與背包皆由此推導
     equipped: {},       // ②外觀:當前穿戴指標 { hat, outfit, home }(per-kid 顯示快取,非帳本;真相走 inventoryOf)
     shopTab: 'shop',    // 商城頁子分頁:'shop'=商城 / 'bag'=背包 / 'home'=家園(不持久化)
@@ -873,7 +878,25 @@ class Component extends DCLogic {
       return { propText: '', propReason: '', proposeOpen: false, proposeKind: 'covenant', covenant: { ...st.covenant, proposals: [...(st.covenant.proposals || []), p] } };
     });
   }
-  // 家長採納/婉拒提案:公約提案採納 → 條款加入公約;任務提案採納 → 只記錄(實際上架任務池為 Phase 2),不塞進公約條款
+  // ===== 自訂任務原語(鏡像 items;啟用走 kidId 而非 taskOn,故「重新來過」reset 掃不到)=====
+  // 純建構:把提案/表單定稿值 → 一筆 catalog 任務物件。xp 自動導出 Math.round(coin*0.75)(對齊 LIB coin:xp 眾數 0.75)。
+  // 段位預設 unlockRank=null(全開);active:true;kidId=啟用歸屬(核准當下的提案孩子);type 恆 'task'(不入信任軸)。
+  _makeCustomTask(spec, kidId) {
+    const coin = Math.max(0, parseInt(spec.coin, 10) || 0);
+    return { id: newId(), type: 'task',
+      label: (spec.label || '').trim() || '自訂任務', sub: (spec.sub || '').trim(),
+      coin, xp: Math.round(coin * 0.75), icon: spec.icon || 'i-spark',
+      dom: spec.dom || '自訂', domColor: spec.domColor || 'teal', where: spec.where || 'anywhere',
+      unlockRank: (spec.unlockRank != null ? spec.unlockRank : null),
+      proposed: !!spec.proposed, active: true, kidId: kidId || null, createdAt: this.state.lastDate };
+  }
+  // 標準呼叫端①:核准任務提案(decideProposal / confirmApprove 的 task 分支,已於各自 setState 內用 _makeCustomTask 併入)。
+  // 標準呼叫端②(接點預留,本次不實作):家長「直接新增任務」按鈕 → createCustomTask(spec, 選定kid),proposed:false、跳過提案。
+  createCustomTask(spec, kidId) {   // 獨立入口:建列(啟用不寫 taskOn)→ 去抖 cloudSave → pushCustomTasks 上雲。
+    if (this.state.preview) return;
+    this.setState(st => ({ customTasks: [...(st.customTasks || []), this._makeCustomTask(spec, kidId)] }));
+  }
+  // 家長採納/婉拒提案:公約提案採納 → 條款加入公約;任務提案採納 → 建入自訂任務(自訂任務原語);不塞進公約條款
   decideProposal(id, approve) {
     this.setState(st => {
       const p = (st.covenant.proposals || []).find(x => x.id === id && x.status === 'pending');
@@ -887,6 +910,9 @@ class Component extends DCLogic {
         if (p.kind === 'reward') {                                 // 核准獎品提案 → 建入商城,掛「你提案的」角標(可事後編輯定價)
           const cost = parseInt((p.reason || '').replace(/[^0-9]/g, ''), 10) || 0;
           out.items = [...(st.items || []), { id: newId(), name: p.text, cost: cost > 0 ? cost : 100, desc: '', unlockRank: null, icon: 'i-gift', g: 'magenta', proposed: true, builtin: false, active: true, createdAt: st.lastDate }];
+        } else {                                                   // 核准任務提案 → 建入自訂任務;啟用歸該提案孩子(st.currentKidId),xp 自動導出。提案開價(p.reason)當賞金
+          const coin = parseInt((p.reason || '').replace(/[^0-9]/g, ''), 10) || 0;
+          out.customTasks = [...(st.customTasks || []), this._makeCustomTask({ label: p.text, coin, proposed: true }, st.currentKidId)];
         }
         return out;
       }
@@ -926,6 +952,7 @@ class Component extends DCLogic {
       const note = '採納' + kindCn + '提案:' + (edited ? (p.text + ' → ' + name) : name) + (bounty ? '(' + bounty + '幣)' : '');
       const out = { approveForm: null, covenant: { ...st.covenant, proposals, history: [...(st.covenant.history || []), { v: st.covenant.version, at: ymd(new Date()), note }] } };
       if (p.kind === 'reward') out.items = [...(st.items || []), { id: newId(), name, cost: bounty > 0 ? bounty : 100, desc, unlockRank: null, icon: 'i-gift', g: 'magenta', proposed: true, builtin: false, active: true, createdAt: st.lastDate }];
+      else if (p.kind === 'task') out.customTasks = [...(st.customTasks || []), this._makeCustomTask({ label: name, sub: desc, coin: bounty, proposed: true }, st.currentKidId)];  // 定稿名/說明/賞金 → 自訂任務;啟用歸該提案孩子
       return out;
     });
   }
@@ -1195,7 +1222,7 @@ class Component extends DCLogic {
       eq: S.equipped,   // ②外觀:穿戴變更觸發 cloudSave → pushKid
       ev: S.checkinEvents, ga: S.graduatedAt,   // #2:信任由 checkinEvents(含 checkpoint)推導,不再單獨 hash trustLevel
       cov: { v: S.covenant.version, t: S.covenant.terms, s: S.covenant.schedules, sig: S.covenant.signatures, h: S.covenant.history },
-      pr: S.covenant.proposals, pl: S.covenant.pledges, pdn: S.pledgeDone, pdel: S.pendingDeletes, itm: S.items, nft: S.covenant.nfcTokens });   // #4 + items 主檔 + NFC(ledger 走 RPC/append,不進 hash)
+      pr: S.covenant.proposals, pl: S.covenant.pledges, pdn: S.pledgeDone, pdel: S.pendingDeletes, itm: S.items, ct: S.customTasks, nft: S.covenant.nfcTokens });   // #4 + items 主檔 + 自訂任務 + NFC(ledger 走 RPC/append,不進 hash)
   }
   async cloudInit() {
     if (!this._supa || this._cloudReady || this._cloudBusy) return;
@@ -1217,6 +1244,7 @@ class Component extends DCLogic {
       else if (localPin) { this._parentPin = localPin; try { await this._supa.from('families').update({ parent_pin: localPin }).eq('id', familyId); } catch (e) {} }
       else { this._parentPin = null; }
       await this.cloudLoadItems(familyId);   // items 主檔:family 共享;空表 → seed 內建示範品 + 遷入本機自建商品
+      await this.cloudLoadCustomTasks(familyId);   // 自訂任務目錄:family 共享;須先於 cloudLoad(還原打卡 label/icon 要查得到)
       let { data: rows, error: ke } = await this._supa.from('kids').select('*').eq('family_id', familyId).order('created_at');
       if (ke) throw ke;
       rows = rows || [];
@@ -1286,6 +1314,34 @@ class Component extends DCLogic {
       active: r.active !== false, pending: r.pending || undefined, createdAt: r.created_at,
       category: r.category || 'privilege', slot: r.slot || undefined, art: r.art || undefined };   // ②外觀分類
   }
+  // 自訂任務目錄(family 共享;鏡像 cloudLoadItems,但內建任務留在 LIB code、不下 DB → 不需 missingBuiltinIds 補種)。
+  // 必須先於 cloudLoad 執行:cloudLoad 還原打卡 label/icon 時要能在 catalog 查到自訂任務。
+  async cloudLoadCustomTasks(familyId) {
+    try {
+      let { data, error } = await this._supa.from('custom_tasks').select('*').eq('family_id', familyId).order('created_at');
+      if (error) throw error;
+      if (!data || !data.length) {                                 // 首次:把本機(訪客期)自訂任務遷上雲(需合法 kidId 才插得進,FK/not-null)
+        const seedRows = (this.state.customTasks || []).map(t => this._customTaskRow(t, familyId)).filter(r => r.kid_id);
+        if (seedRows.length) { const { error: ie } = await this._supa.from('custom_tasks').insert(seedRows); if (ie) throw ie; }
+        const r2 = await this._supa.from('custom_tasks').select('*').eq('family_id', familyId).order('created_at');
+        data = r2.data || [];
+      }
+      this.setState({ customTasks: data.map(r => this._customTaskFromRow(r)) });
+    } catch (e) { /* 讀不到就沿用本機;不擋登入 */ }
+  }
+  _customTaskRow(t, familyId) {   // state → DB 列
+    return { id: t.id, family_id: familyId, kid_id: t.kidId || null, label: t.label, sub: t.sub || null,
+      coin: t.coin || 0, xp: (t.xp != null ? t.xp : Math.round((t.coin || 0) * 0.75)), icon: t.icon || 'i-spark',
+      dom: t.dom || '自訂', dom_color: t.domColor || 'teal', where_at: t.where || 'anywhere',
+      unlock_rank: (t.unlockRank != null ? t.unlockRank : null), proposed: !!t.proposed, active: t.active !== false };
+  }
+  _customTaskFromRow(r) {   // DB 列 → state(type 恆 'task';啟用歸屬走 kidId,非 taskOn)
+    return { id: r.id, type: 'task', label: r.label, sub: r.sub || '', coin: r.coin || 0,
+      xp: (r.xp != null ? r.xp : Math.round((r.coin || 0) * 0.75)), icon: r.icon || 'i-spark',
+      dom: r.dom || '自訂', domColor: r.dom_color || 'teal', where: r.where_at || 'anywhere',
+      unlockRank: (r.unlock_rank != null ? r.unlock_rank : null), proposed: !!r.proposed,
+      active: r.active !== false, kidId: r.kid_id || null, createdAt: r.created_at };
+  }
   async cloudLoad(kid) {
     this._kidId = kid.id;
     const res = await Promise.all([
@@ -1304,7 +1360,8 @@ class Component extends DCLogic {
     const proposals = cProps.map(r => ({ id: r.id, text: r.text, reason: r.reason || '', at: r.at ? String(r.at).slice(0, 10) : '', status: r.status || 'pending' }));
     const pledges = cPledges.map(r => ({ id: r.id, text: r.text }));
     const pledgeDone = {}; cPlog.forEach(r => { if (r.done) pledgeDone[r.pledge_id + '::' + String(r.date).slice(0, 10)] = true; });
-    const checkinEvents = evs.map(r => { const lib = LIB.find(x => x.id === r.behavior_id) || {}; return {
+    const cat = LIB.concat(this.state.customTasks || []);   // catalog:自訂任務打卡的 label/icon 也要能還原(cloudLoadCustomTasks 已先於本函式執行)
+    const checkinEvents = evs.map(r => { const lib = cat.find(x => x.id === r.behavior_id) || {}; return {
       id: r.behavior_id + '-' + r.date, behaviorId: r.behavior_id, label: lib.label || r.behavior_id, icon: lib.icon || 'i-check',
       kind: r.kind, coin: r.coin, xp: r.xp, honest: !!r.honest, missReason: r.miss_reason || null,
       ts: r.ts ? Date.parse(r.ts) : Date.now(), date: r.date, verdict: r.verdict }; });
@@ -1343,6 +1400,12 @@ class Component extends DCLogic {
     const rows = (this.state.items || []).map(it => this._itemRow(it, this._familyId));
     if (!rows.length) return;
     const { error } = await this._supa.from('items').upsert(rows, { onConflict: 'id' }); if (error) throw error;
+  }
+  // 自訂任務目錄(family 共享):upsert 全量。只推有合法 kidId 的列(FK/not-null)。啟用歸屬走 kid_id,不經 task_on。
+  async pushCustomTasks() {
+    const rows = (this.state.customTasks || []).map(t => this._customTaskRow(t, this._familyId)).filter(r => r.kid_id);
+    if (!rows.length) return;
+    const { error } = await this._supa.from('custom_tasks').upsert(rows, { onConflict: 'id' }); if (error) throw error;
   }
   // ledger_events 遷移:訪客期間本機累積的帳本一次性 insert 上雲(append-only,永不 delete)
   async pushLedgerMigrate() {
@@ -1410,6 +1473,7 @@ class Component extends DCLogic {
       await this.pushKid(); await this.pushTrust(); await this.pushCovenant(); await this.pushEvents();
       await this.pushPledges(); await this.pushProposals(); await this.pushPledgeLog();   // #4(承諾先於承諾打卡:FK)
       await this.pushItems();   // items 主檔(family 共享);ledger 走 RPC/append,不在此推
+      await this.pushCustomTasks();   // 自訂任務目錄(family 共享)
       await this.retryPendingDeletes();
       this._lastSyncHash = h;
       this.setState({ syncStatus: 'ok' });
@@ -1618,7 +1682,9 @@ class Component extends DCLogic {
     const reached = TIER_XP.reduce((m, thr, i) => S.xp >= thr ? i : m, 0);
     // 任務解鎖:段位達到 unlockRank 才可用;家長可提前手動解鎖(manualUnlock)
     const available = (t) => (t.unlockRank || 0) <= reached || !!(S.manualUnlock && S.manualUnlock[t.id]);
-    const activeLib = LIB.filter(t => S.taskOn[t.id] && available(t));
+    // 自訂任務啟用 = 該列 active 且 kidId===當前孩子(不走 taskOn,故 reset 掃不到);再套段位 available()。LIB 側維持 taskOn 過濾。
+    const myCustomTasks = (S.customTasks || []).filter(t => t.active !== false && t.kidId === S.currentKidId);
+    const activeLib = LIB.filter(t => S.taskOn[t.id] && available(t)).concat(myCustomTasks.filter(available));
     const dayPool = mode === 'out' ? activeLib.filter(t => t.where === 'anywhere') : activeLib;
     const today = S.lastDate || ymd(new Date());
     const check = React.createElement('svg', { style: { width: 15, height: 15 } }, React.createElement('use', { href: '#i-check' }));
