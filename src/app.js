@@ -1357,7 +1357,7 @@ class Component extends DCLogic {
     const cProps = res[3].data || [], cPledges = res[4].data || [], cPlog = res[5].data || [];
     const cLedger = res[6].data || [];
     const ledgerEvents = cLedger.map(r => ({ id: r.id, kind: r.kind, itemId: r.item_id, amount: r.amount, qty: r.qty, ts: r.ts ? Date.parse(r.ts) : Date.now(), date: r.date }));
-    const proposals = cProps.map(r => ({ id: r.id, text: r.text, reason: r.reason || '', at: r.at ? String(r.at).slice(0, 10) : '', status: r.status || 'pending' }));
+    const proposals = cProps.map(r => ({ id: r.id, text: r.text, reason: r.reason || '', at: r.at ? String(r.at).slice(0, 10) : '', status: r.status || 'pending', kind: r.kind || 'covenant' }));   // kind 讀回:舊列 null → 'covenant'(行為不變);task/reward 提案的 kind 才不會在雲端往返後掉光
     const pledges = cPledges.map(r => ({ id: r.id, text: r.text }));
     const pledgeDone = {}; cPlog.forEach(r => { if (r.done) pledgeDone[r.pledge_id + '::' + String(r.date).slice(0, 10)] = true; });
     const cat = LIB.concat(this.state.customTasks || []);   // catalog:自訂任務打卡的 label/icon 也要能還原(cloudLoadCustomTasks 已先於本函式執行)
@@ -1443,7 +1443,7 @@ class Component extends DCLogic {
   // #4:提案(per-kid)、承諾(family)、承諾打卡(family)
   async pushProposals() {
     const props = this.state.covenant.proposals || []; if (!props.length) return;
-    const rows = props.map(p => ({ id: p.id, family_id: this._familyId, kid_id: this._kidId, text: p.text, reason: p.reason || null, status: p.status || 'pending', at: p.at || null }));
+    const rows = props.map(p => ({ id: p.id, family_id: this._familyId, kid_id: this._kidId, text: p.text, reason: p.reason || null, status: p.status || 'pending', at: p.at || null, kind: p.kind || 'covenant' }));   // kind 落庫:否則重整/跨裝置往返後 kind 掉光,同意 task 提案會被誤判成公約
     const { error } = await this._supa.from('proposals').upsert(rows, { onConflict: 'id' }); if (error) throw error;
   }
   async pushPledges() {
