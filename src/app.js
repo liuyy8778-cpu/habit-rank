@@ -1443,7 +1443,7 @@ class Component extends DCLogic {
   // #4:提案(per-kid)、承諾(family)、承諾打卡(family)
   async pushProposals() {
     const props = this.state.covenant.proposals || []; if (!props.length) return;
-    const rows = props.map(p => ({ id: p.id, family_id: this._familyId, kid_id: this._kidId, text: p.text, reason: p.reason || null, status: p.status || 'pending', at: p.at || null, kind: p.kind || 'covenant' }));   // kind 落庫:否則重整/跨裝置往返後 kind 掉光,同意 task 提案會被誤判成公約
+    const rows = props.map(p => ({ id: p.id, family_id: this._familyId, kid_id: this._kidId, text: p.text, reason: p.reason || null, status: p.status || 'pending', at: p.at || null, kind: p.kind }));   // kind 落庫(寫原值,不 ||'covenant':遺漏的 kind 以 null 現形、可揪出,不被靜靜洗成公約)。讀回在 cloudLoad 才 || 'covenant'
     const { error } = await this._supa.from('proposals').upsert(rows, { onConflict: 'id' }); if (error) throw error;
   }
   async pushPledges() {
