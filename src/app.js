@@ -3,7 +3,7 @@
 // where: anywhere=到哪都能做(出門日仍顯示) / home=需在家
 // times: 兩套目標時間(home 在家日 / school 上學日),供螢幕/作息類習慣顯示
 const LIB = [
-  { id:'k1',  type:'habit', dom:'螢幕自律', domColor:'indigo',  where:'home',     times:{home:'22:30',school:'21:40'}, label:'睡前準時交機',        desc:'把手機放到充電座、離開房間，今晚就交給自己保管。每次能主動放下，你就多長一塊「我能停」的肌肉——最難也最值錢的一塊。', coin:20, xp:15, honestyEligible:true, unlockRank:0, icon:'i-moon' },
+  { id:'k1',  type:'habit', dom:'螢幕自律', domColor:'indigo',  where:'home',     times:{home:'22:30',school:'21:40'}, label:'睡前準時交機',        desc:'把手機放到充電座、離開房間，今晚就交給自己保管。每次能主動放下，你就多長一塊「我能停」的肌肉——這塊最難練，也最帶得走。', coin:20, xp:15, honestyEligible:true, unlockRank:0, icon:'i-moon' },
   { id:'k2',  type:'habit', dom:'螢幕自律', domColor:'indigo',  where:'home',     times:{home:'22:00',school:'21:20'}, label:'準時結束今天的螢幕',    desc:'到約定時間自己收手——不是被關掉，是你自己停下來。每次自己停，你就更拿得住手機，不是被它拿住。',            coin:15, xp:12, honestyEligible:true, unlockRank:0, icon:'i-hour' },
   { id:'sc3', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'anywhere', label:'今天完全沒偷超時',      sub:'說好的時間，是你給自己的界線。整天待在界線內，是你自己守住的，不是被盯著。',   coin:8, xp:6, unlockRank:0, icon:'i-check' },
   { id:'sc4', type:'task',  dom:'螢幕自律', domColor:'indigo',  where:'home',     label:'起床後 30 分不碰手機',  sub:'醒來先讓自己開機，再讓手機開機。把早上前 30 分留給自己，一整天的節奏都由你先起頭。',     coin:8, xp:6, unlockRank:1, icon:'i-bolt' },
@@ -22,7 +22,7 @@ const LIB = [
   { id:'rp2', type:'task',  dom:'責任自律', domColor:'teal',    where:'home',     label:'自己整理房間 / 書桌',   sub:'隨手把房間、書桌整理好，是替下一次的自己省下翻找的時間。整齊的空間，你想用時它就在。',           coin:5, xp:4, unlockRank:3, icon:'i-gear' },
   { id:'rp3', type:'task',  dom:'責任自律', domColor:'teal',    where:'home',     label:'東西用完歸位',          sub:'東西用完放回原位，下次要用時它就在那等你。物歸原處，是你替未來的自己省下每一次找東西的力氣。',           coin:4, xp:3, unlockRank:4, icon:'i-target' },
   { id:'em1', type:'task',  dom:'情緒自律', domColor:'magenta', where:'anywhere', label:'情緒踩煞車',            sub:'想生氣時先暫停、深呼吸一下，給自己幾秒鐘當方向盤。踩得住煞車，話和事都還在你手上。', coin:8, xp:6, unlockRank:0, icon:'i-heart' },
-  { id:'em2', type:'task',  dom:'情緒自律', domColor:'magenta', where:'anywhere', label:'說到做到',              sub:'答應的事做到，別人就更敢把重要的事交給你。說到做到，是你替自己存下的份量。',       coin:8, xp:6, unlockRank:2, icon:'i-shield' },
+  { id:'em2', type:'task',  dom:'情緒自律', domColor:'magenta', where:'anywhere', label:'說到做到',              sub:'答應的事做到，下次你想拜託別人、或想要更多信任時，大家都更願意點頭。說到做到，會一次次幫你把話講得更有用。',       coin:8, xp:6, unlockRank:2, icon:'i-shield' },
 ];
 const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const parseYmd = (s) => new Date(s + 'T00:00:00');
