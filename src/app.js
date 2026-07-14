@@ -891,10 +891,24 @@ class Component extends DCLogic {
       proposed: !!spec.proposed, active: true, kidId: kidId || null, createdAt: this.state.lastDate };
   }
   // 標準呼叫端①:核准任務提案(decideProposal / confirmApprove 的 task 分支,已於各自 setState 內用 _makeCustomTask 併入)。
-  // 標準呼叫端②(接點預留,本次不實作):家長「直接新增任務」按鈕 → createCustomTask(spec, 選定kid),proposed:false、跳過提案。
+  // 標準呼叫端②:家長「直接新增任務」按鈕 → createCustomTask(spec, 選定kid),proposed:false、跳過提案(見 openTaskForm/saveNewTask)。
   createCustomTask(spec, kidId) {   // 獨立入口:建列(啟用不寫 taskOn)→ 去抖 cloudSave → pushCustomTasks 上雲。
     if (this.state.preview) return;
     this.setState(st => ({ customTasks: [...(st.customTasks || []), this._makeCustomTask(spec, kidId)] }));
+  }
+  // ===== 家長「直接新增任務」表單(呼叫端②;proposed:false、單一 kidId、xp 由原語自動導出)=====
+  openTaskForm() { if (this.state.preview) return; this.setState({ ntfOpen: true, ntfLabel: '', ntfSub: '', ntfCoin: '', ntfKid: this.state.currentKidId || '', ntfRank: '' }); }
+  closeTaskForm() { this.setState({ ntfOpen: false, ntfLabel: '', ntfSub: '', ntfCoin: '', ntfKid: '', ntfRank: '' }); }
+  setNtf(field, e) { this.setState({ ['ntf' + field]: e.target.value }); }
+  saveNewTask() {   // 防呆:label 必填、coin 正整數、kid 必選;任一不合則不送出(擋 coin*0.75→NaN 髒資料)
+    const st = this.state;
+    const label = (st.ntfLabel || '').trim();
+    const coin = parseInt((st.ntfCoin || '').replace(/[^0-9]/g, ''), 10) || 0;
+    const kidId = st.ntfKid || '';
+    if (!label || coin <= 0 || !kidId) return;
+    const rank = st.ntfRank !== '' ? (parseInt(st.ntfRank, 10) || 0) : null;   // 空 = null(全段可見);unlockRank 由原語落地
+    this.createCustomTask({ label, sub: (st.ntfSub || '').trim(), coin, unlockRank: rank, proposed: false }, kidId);   // xp 不傳,原語 round(coin*0.75)
+    this.setState({ ntfOpen: false, ntfLabel: '', ntfSub: '', ntfCoin: '', ntfKid: '', ntfRank: '' });
   }
   // 家長採納/婉拒提案:公約提案採納 → 條款加入公約;任務提案採納 → 建入自訂任務(自訂任務原語);不塞進公約條款
   decideProposal(id, approve) {
@@ -1165,7 +1179,8 @@ class Component extends DCLogic {
       pinMode, pinEntry, pinError, pinStage, parentUnlocked, rejectConfirm, termRemove, approveForm,
       kidPinMode, kidPinTarget, kidPinEntry, kidPinError, kidPinStage,
       deviceMode, deviceStep, pinGoal, pManage, pDetailKid, slideDir, pullRefreshing, updateReady, schedInfoOpen, preview,
-      sfOpen, sfEdit, sfName, sfCost, sfDesc, sfRank, nfcToken, nfcSrc, tokenRegen, rulesOpen, shopTab, ...persist } = this.state;
+      sfOpen, sfEdit, sfName, sfCost, sfDesc, sfRank, nfcToken, nfcSrc, tokenRegen, rulesOpen, shopTab,
+      ntfOpen, ntfLabel, ntfSub, ntfCoin, ntfKid, ntfRank, ...persist } = this.state;
       localStorage.setItem('habitRank', JSON.stringify(persist)); } catch (e) {}
     // 裝置精靈:只要「已登入 + 尚未設定 deviceMode」就顯示 —— 用反應式偵測,不綁 cloudInit 成功與否,
     // 既有已登入裝置(功能上線前就登入的)下次載入也會觸發。guestMode 無 session → 不觸發。
@@ -1880,6 +1895,10 @@ class Component extends DCLogic {
     const sfCostNum = parseInt((S.sfCost || '').replace(/[^0-9]/g, ''), 10) || 0;
     const sfDays = (sfCostNum > 0 && kidDailyCoin > 0) ? Math.round(sfCostNum / kidDailyCoin * 10) / 10 : null;
     const sfBand = rewardPriceBand(sfDays), sfFlag = shopRuleFlag(S.sfName);
+    // 家長新增任務表單防呆:label 必填、coin 正整數、kid 必選
+    const ntfCoinNum = parseInt((S.ntfCoin || '').replace(/[^0-9]/g, ''), 10) || 0;
+    const ntfLabelOk = !!(S.ntfLabel || '').trim(), ntfCoinOk = ntfCoinNum > 0, ntfKidOk = !!S.ntfKid;
+    const ntfValid = ntfLabelOk && ntfCoinOk && ntfKidOk;
     // 採納微調表單的定價輔助
     const afIsReward2 = !!(S.approveForm && S.approveForm.kind === 'reward');
     const afCostNum = parseInt(((S.approveForm && S.approveForm.bounty) || '').replace(/[^0-9]/g, ''), 10) || 0;
@@ -2162,6 +2181,18 @@ class Component extends DCLogic {
       onSfName: (e) => this.setSf('Name', e), onSfCost: (e) => this.setSf('Cost', e), onSfDesc: (e) => this.setSf('Desc', e), onSaveShop: () => this.saveShopItem(),
       sfRankVal: S.sfRank, sfRankOptions: [{ v: '', label: '不限段位' }].concat(TIER_NAMES.map((n, i) => ({ v: String(i), label: n + '專屬' }))),
       onSfRank: (e) => this.setSf('Rank', e),
+      // 家長「直接新增任務」表單:label + sub + coin(xp 自動導出)+ 指定 kid + unlockRank(選填,預設全段可見)
+      ntfOpen: !!S.ntfOpen, ntfLabel: S.ntfLabel || '', ntfSub: S.ntfSub || '', ntfCoin: S.ntfCoin || '',
+      onOpenTaskForm: () => this.openTaskForm(), onCloseTaskForm: () => this.closeTaskForm(),
+      onNtfLabel: (e) => this.setNtf('Label', e), onNtfSub: (e) => this.setNtf('Sub', e), onNtfCoin: (e) => this.setNtf('Coin', e),
+      ntfKidVal: S.ntfKid || '', onNtfKid: (e) => this.setNtf('Kid', e),
+      ntfKidOptions: [{ v: '', label: '指定給哪個孩子…' }].concat((S.kids || []).map(k => ({ v: k.id, label: (k.avatar || '🦊') + ' ' + k.name }))),
+      ntfRankVal: S.ntfRank || '', onNtfRank: (e) => this.setNtf('Rank', e),
+      ntfRankOptions: [{ v: '', label: '全段可見(預設)' }].concat(TIER_NAMES.map((n, i) => ({ v: String(i), label: n + '起解鎖' }))),
+      onSaveNewTask: () => this.saveNewTask(),
+      ntfHasCoin: ntfCoinNum > 0, ntfXp: Math.round(ntfCoinNum * 0.75),
+      ntfValid: ntfValid, ntfInvalid: !ntfValid,
+      ntfHint: [!ntfLabelOk ? '任務名稱' : null, !ntfCoinOk ? '正整數幣值' : null, !ntfKidOk ? '指定孩子' : null].filter(Boolean).join('、'),
       sfHasCost: sfCostNum > 0, sfIncome: sfDays != null ? ('≈ 他 ' + sfDays + ' 天收入(近14天日均)') : '近14天尚無足夠收入可換算',
       sfBand: sfBand ? sfBand.band : '', sfHasBand: !!sfBand, sfFlag: sfFlag || '', sfHasFlag: !!sfFlag,
       pHasPending: pWait > 0, pAllDone: pWait === 0, pWait, onApproveAll: () => this.approveAll(),

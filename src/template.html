@@ -4241,6 +4241,38 @@
                   </div>
                 </sc-for>
               </div>
+              <div style="font-weight:800;font-size:14.5px;color:#1a1f2e;margin:4px 2px 4px">自訂任務</div>
+              <div style="font-size:12.5px;color:#8890a3;margin:0 2px 12px">你直接新增的任務,只給指定的孩子,立即生效</div>
+              <button onclick="{{ onOpenTaskForm }}" style="width:100%;border:2px dashed #c7cde0;background:none;border-radius:16px;padding:14px;color:#5b5bd6;font:700 14px 'Noto Sans TC';cursor:pointer">+ 新增任務</button>
+              <sc-if value="{{ ntfOpen }}">
+                <div style="background:#fff;border:1.5px solid #d9dcff;border-radius:16px;padding:15px;margin-top:12px;margin-bottom:22px;animation:cardIn .3s both">
+                  <div style="font-weight:800;font-size:14px;color:#1a1f2e;margin-bottom:12px">新增任務</div>
+                  <input value="{{ ntfLabel }}" oninput="{{ onNtfLabel }}" placeholder="任務名稱(例:幫忙收晚餐碗盤)" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:11px;padding:11px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:9px">
+                  <input value="{{ ntfSub }}" oninput="{{ onNtfSub }}" placeholder="說明(可選)" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:11px;padding:11px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:9px">
+                  <input value="{{ ntfCoin }}" oninput="{{ onNtfCoin }}" inputmode="numeric" placeholder="賞金(幣,正整數)" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:11px;padding:11px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:9px">
+                  <select value="{{ ntfKidVal }}" onchange="{{ onNtfKid }}" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:11px;padding:11px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:9px;background:#fff">
+                    <sc-for list="{{ ntfKidOptions }}" as="o" hint-placeholder-count="2"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+                  </select>
+                  <select value="{{ ntfRankVal }}" onchange="{{ onNtfRank }}" style="width:100%;box-sizing:border-box;border:1.5px solid #dfe3ef;border-radius:11px;padding:11px;font:400 13px 'Noto Sans TC';outline:none;color:#1a1f2e;margin-bottom:11px;background:#fff">
+                    <sc-for list="{{ ntfRankOptions }}" as="o" hint-placeholder-count="7"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+                  </select>
+                  <sc-if value="{{ ntfHasCoin }}">
+                    <div style="background:#f7f8fc;border-radius:11px;padding:10px 12px;margin-bottom:11px;font-size:11.5px;color:#5a6070;line-height:1.7">💰 xp 自動 = {{ ntfXp }}(賞金 × 0.75)</div>
+                  </sc-if>
+                  <sc-if value="{{ ntfInvalid }}">
+                    <div style="background:#fbf3e2;border-radius:11px;padding:10px 12px;margin-bottom:11px;font-size:11.5px;color:#9c6b16;line-height:1.7">請先填寫:{{ ntfHint }}</div>
+                  </sc-if>
+                  <div style="display:flex;gap:9px">
+                    <button onclick="{{ onCloseTaskForm }}" style="flex:none;border:1.5px solid #e7eaf2;background:#fff;border-radius:11px;padding:11px 16px;color:#8890a3;font:700 13px 'Noto Sans TC';cursor:pointer">取消</button>
+                    <sc-if value="{{ ntfValid }}">
+                      <button onclick="{{ onSaveNewTask }}" style="flex:1;border:0;border-radius:11px;padding:11px;background:linear-gradient(135deg,#6d6df0,#5b5bd6);color:#fff;font:800 13.5px 'Noto Sans TC';cursor:pointer">新增任務</button>
+                    </sc-if>
+                    <sc-if value="{{ ntfInvalid }}">
+                      <button style="flex:1;border:0;border-radius:11px;padding:11px;background:#e7eaf2;color:#aab0c0;font:800 13.5px 'Noto Sans TC';cursor:not-allowed">新增任務</button>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-if>
             </div>
           </sc-if>
           <sc-if value="{{ pmShop }}">
